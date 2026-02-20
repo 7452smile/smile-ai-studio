@@ -1,0 +1,48 @@
+{
+  "tabs": {
+    "all": "All",
+    "image": "Images",
+    "video": "Videos",
+    "upscale": "Upscale"
+  },
+  "pending": {
+    "title": "In Progress",
+    "generating": "Generating...",
+    "maybeStuck": "May be stuck",
+    "refresh": "Refresh",
+    "cancel": "Cancel"
+  },
+  "history": {
+    "items": "{{count}} items",
+    "clear": "Clear",
+    "clearConfirm": "Clear all history?",
+    "retention": "History retention: ",
+    "retentionUpgrade": "Upgrade to extend retention",
+    "empty": "No Records",
+    "emptyDesc": "Start creating, your works will appear here"
+  },
+  "detail": {
+    "download": "Download",
+    "useParams": "Use Params",
+    "downloadPreparing": "Preparing file...",
+    "downloadSuccess": "File saved",
+    "downloadFailed": "Download failed",
+    "downloadingVideo": "Browser is downloading video...",
+    "openInNewTab": "Opened in new tab, right-click to save",
+    "shareTitle": "Smile AI Studio Creation",
+    "shareText": "Check out my creation from Smile AI Studio!"
+  },
+  "modelLabels": {
+    "seedream": "Seedream",
+    "banana": "Banana Pro",
+    "remove-bg": "Remove BG",
+    "kling": "Kling",
+    "minimax": "Minimax",
+    "wan": "Wan",
+    "runway": "Runway",
+    "creative": "Magnific",
+    "faithful": "4K Fast",
+    "magnific-creative": "Creative Upscale",
+    "magnific-precision": "Precision Upscale"
+  }
+}

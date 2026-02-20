@@ -1,0 +1,37 @@
+{
+  "nav": {
+    "imageCreation": "图片创作",
+    "videoGeneration": "视频生成",
+    "magnific": "Magnific高清",
+    "removeBg": "一键抠图",
+    "pricing": "订阅套餐",
+    "modelPricing": "模型定价",
+    "referral": "邀请返利",
+    "imageToPrompt": "图片反推提示词",
+    "admin": "管理后台",
+    "logout": "退出登录",
+    "comingSoon": "即将上线"
+  },
+  "credits": {
+    "remaining": "剩余积分",
+    "estimated": "预估消耗",
+    "manage": "管理套餐",
+    "upgrade": "升级套餐",
+    "loggedIn": "已登录: {{user}}",
+    "expires": "{{date}}到期"
+  },
+  "redeem": {
+    "title": "兑换码",
+    "placeholder": "输入兑换码",
+    "button": "兑换",
+    "success": "兑换成功！获得 {{credits}} 积分",
+    "successSub": "兑换成功！已激活{{tier}}会员，获得 {{credits}} 积分",
+    "failed": "兑换失败"
+  },
+  "tierNames": {
+    "starter": "入门版",
+    "advanced": "进阶版",
+    "flagship": "旗舰版",
+    "studio": "工作室版"
+  }
+}

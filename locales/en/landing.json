@@ -1,0 +1,213 @@
+{
+  "nav": {
+    "features": "Features",
+    "models": "Models",
+    "pricing": "Pricing"
+  },
+  "hero": {
+    "badge": "Joined by 1,200+ creators",
+    "title1": "AI-Powered",
+    "title2": "Visual Creation Platform",
+    "desc": "9 top AI models in one place — image generation, video creation, and HD upscaling.",
+    "desc2": "Professional creation, simpler than ever.",
+    "startFree": "Start Free",
+    "learnMore": "Learn More",
+    "stat": {
+      "works": "Works Created",
+      "avgTime": "Avg. Time",
+      "uptime": "Uptime"
+    }
+  },
+  "models": {
+    "badge": "Model Matrix",
+    "title": "9 Top AI Models Integrated",
+    "desc": "Covering image, video, and upscaling scenarios",
+    "typeImage": "Image",
+    "typeVideo": "Video",
+    "typeTool": "Tool",
+    "seedream": { "desc": "High-quality text-to-image, diverse styles" },
+    "kling": { "desc": "Kling AI video generation, multi-shot support" },
+    "minimax": { "desc": "Hailuo video, efficient and stable" },
+    "runway": { "desc": "Cinema-grade video generation" },
+    "wan": { "desc": "Wan video, extra-long duration" },
+    "seedance": { "desc": "Dance/motion video expert" },
+    "pixverse": { "desc": "Stylized video, start/end frame control" },
+    "ltx": { "desc": "Ultra HD video generation" },
+    "magnific": { "desc": "10K upscaling, official API" }
+  },
+  "features": {
+    "badge": "Core Features",
+    "title": "All-in-One Creation Tools",
+    "desc": "Industry-leading AI models for all your visual creation needs",
+    "video": {
+      "title": "Text to Video",
+      "desc": "7 models including Kling, Minimax, Runway — generate cinema-grade videos from text.",
+      "tag1": "4K Output",
+      "tag2": "50 FPS",
+      "tag3": "7 Models"
+    },
+    "image": {
+      "title": "Image Generation",
+      "desc": "Seedream 4.5 high-quality text-to-image, 8 aspect ratios, diverse styles."
+    },
+    "upscale": {
+      "title": "10K HD Upscaling",
+      "desc": "Magnific official API, upscale images to 10000px.",
+      "officialApi": "Official API",
+      "priceTip": "1/10 of official price"
+    },
+    "style": {
+      "title": "Style Presets",
+      "desc": "Cyberpunk, Ghibli, realistic photography... rich styles with one click."
+    }
+  },
+  "pricing": {
+    "badge": "Pricing",
+    "title": "Simple, Transparent Pricing",
+    "desc": "Choose your plan, upgrade anytime",
+    "perMonth": "/mo",
+    "free": {
+      "name": "Free",
+      "price": "$0",
+      "period": "Free forever",
+      "features": ["188 credits on signup", "Daily login +10 credits", "1 concurrent task"],
+      "button": "Start Free"
+    },
+    "starter": {
+      "name": "Starter",
+      "price": "$2.99",
+      "period": "Casual creators",
+      "features": ["2,000 credits/month", "3 image + 1 video concurrent", "All models"],
+      "button": "Upgrade Now"
+    },
+    "flagship": {
+      "name": "Flagship",
+      "price": "$13.99",
+      "period": "Pro creators",
+      "recommend": "Recommended",
+      "features": ["15,000 credits/month", "Unlimited concurrent", "7-day history", "Early access to new models"],
+      "button": "Upgrade Now"
+    },
+    "viewAll": "View all 5 plans →"
+  },
+  "footer": {
+    "terms": "Terms of Service",
+    "privacy": "Privacy Policy",
+    "help": "Help Center",
+    "close": "Close",
+    "termsContent": {
+      "title": "Smile AI Studio Terms of Service",
+      "lastUpdate": "Last updated: February 2026",
+      "sections": [
+        {
+          "heading": "1. Service Description",
+          "text": "Smile AI Studio is an AI-powered visual creation platform offering image generation, video creation, and HD upscaling services. By using this platform, you agree to comply with the following terms."
+        },
+        {
+          "heading": "2. Prohibited Content (Important)",
+          "text": "Users are strictly prohibited from generating, uploading, or distributing the following content:",
+          "list": [
+            "Pornographic, obscene, or sexually suggestive content",
+            "Politically sensitive content that undermines national sovereignty or unity",
+            "Violence, terrorism, or extremism-related content",
+            "Content that infringes on others' portrait rights, reputation, or privacy",
+            "Inappropriate content involving minors",
+            "Misinformation, rumors, or misleading content",
+            "Content that infringes intellectual property rights",
+            "Any content that violates applicable laws and regulations"
+          ]
+        },
+        {
+          "heading": "3. Violation Handling",
+          "text": "For users who violate the above rules, the platform reserves the right to: suspend or terminate accounts, delete violating content, and forfeit remaining credits without refund. In severe cases, the platform will cooperate with authorities for legal action."
+        },
+        {
+          "heading": "4. Credits & Payment",
+          "text": "Credits are virtual currency and non-refundable once purchased. The platform reserves the right to adjust credit pricing and consumption rules."
+        },
+        {
+          "heading": "5. Intellectual Property",
+          "text": "Users retain usage rights to content generated through this platform, but the platform reserves the right to use such content for model improvement and service optimization. Users may not use generated content for illegal purposes."
+        },
+        {
+          "heading": "6. Disclaimer",
+          "text": "AI-generated content may contain inaccuracies or imperfections. The platform makes no guarantees regarding the accuracy or completeness of generated content. The platform is not liable for any losses caused by users' use of generated content."
+        },
+        {
+          "heading": "7. Terms Modification",
+          "text": "The platform reserves the right to modify these terms at any time. Continued use of the service after modifications constitutes acceptance of the updated terms."
+        }
+      ]
+    },
+    "privacyContent": {
+      "title": "Smile AI Studio Privacy Policy",
+      "lastUpdate": "Last updated: February 2026",
+      "sections": [
+        {
+          "heading": "1. Information Collection",
+          "text": "We collect the following information to provide our services:",
+          "list": [
+            "Account information: phone number or email address",
+            "Usage data: generation history, activity logs",
+            "Device information: browser type, operating system",
+            "Payment information: processed through third-party payment platforms; we do not store complete payment details"
+          ]
+        },
+        {
+          "heading": "2. Information Usage",
+          "text": "Collected information is used solely for: providing and improving services, processing transactions, sending service notifications, and preventing abuse and fraud. We do not sell your personal information to third parties."
+        },
+        {
+          "heading": "3. Information Security",
+          "text": "We employ industry-standard security measures to protect your data, including encrypted transmission and storage. However, please note that no internet transmission can be guaranteed 100% secure."
+        },
+        {
+          "heading": "4. Generated Content",
+          "text": "Your prompts and generated content may be used for content safety review. Generated images and videos will be automatically deleted after a retention period based on your subscription tier."
+        },
+        {
+          "heading": "5. Your Rights",
+          "text": "You have the right to access, correct, or delete your personal information. To exercise these rights, please contact us through the Help Center."
+        },
+        {
+          "heading": "6. Cookies",
+          "text": "We use cookies and local storage to maintain login status and user preferences."
+        }
+      ]
+    },
+    "helpContent": {
+      "title": "Help Center",
+      "sections": [
+        {
+          "heading": "Getting Started",
+          "text": "Register an account to receive free credits. Choose a model, enter a text description, and start creating. Supports image generation, video creation, and HD upscaling."
+        },
+        {
+          "heading": "Credits",
+          "text": "Different models and parameters consume different amounts of credits. Higher resolution and longer videos cost more credits. Daily login rewards free credits. See the Model Pricing page for detailed consumption rules."
+        },
+        {
+          "heading": "Content Guidelines",
+          "text": "Please follow platform content guidelines. Generating pornographic, political, violent, or other prohibited content is strictly forbidden and will result in account suspension. See Terms of Service for details."
+        },
+        {
+          "heading": "FAQ",
+          "items": [
+            { "q": "What if generation fails?", "a": "Failed generations do not consume credits. Check if your prompt contains prohibited content and try again." },
+            { "q": "How to get more credits?", "a": "Purchase subscription plans, log in daily, or invite friends to earn credits." },
+            { "q": "What payment methods are supported?", "a": "We currently support Alipay and PayPal." }
+          ]
+        },
+        {
+          "heading": "Contact Us",
+          "text": "For other questions, please email a1205061933@gmail.com"
+        }
+      ]
+    }
+  },
+  "auth": {
+    "login": "Log In",
+    "logout": "Log Out",
+    "startCreating": "Start Creating"
+  }
+}

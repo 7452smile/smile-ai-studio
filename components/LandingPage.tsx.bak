@@ -1,0 +1,322 @@
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Sparkles, Zap, Image as ImageIcon, Video, ArrowRight, Check, Play, User } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import AuthPage from './AuthPage';
+import { useGeneration } from '../context/GenerationContext';
+
+interface LandingPageProps {
+    onLaunch: () => void;
+}
+
+const MODEL_SHOWCASE_KEYS = [
+    { name: 'Seedream 4.5', typeKey: 'typeImage', descKey: 'seedream', tags: ['2K+', '8 Ratios'], gradient: 'from-cyan-500 to-blue-500' },
+    { name: 'Kling 3', typeKey: 'typeVideo', descKey: 'kling', tags: ['4K', '15s', 'Audio'], gradient: 'from-indigo-500 to-purple-500' },
+    { name: 'Minimax Hailuo', typeKey: 'typeVideo', descKey: 'minimax', tags: ['1080p', '10s'], gradient: 'from-cyan-500 to-blue-500' },
+    { name: 'Runway Gen4.5', typeKey: 'typeVideo', descKey: 'runway', tags: ['10s', 'Multi-ratio'], gradient: 'from-amber-500 to-orange-500' },
+    { name: 'Wan', typeKey: 'typeVideo', descKey: 'wan', tags: ['1080p', '15s'], gradient: 'from-blue-500 to-violet-500' },
+    { name: 'Seedance', typeKey: 'typeVideo', descKey: 'seedance', tags: ['12s', 'Audio'], gradient: 'from-violet-500 to-pink-500' },
+    { name: 'PixVerse V5', typeKey: 'typeVideo', descKey: 'pixverse', tags: ['1080p', '8s', 'Style'], gradient: 'from-pink-500 to-rose-500' },
+    { name: 'LTX', typeKey: 'typeVideo', descKey: 'ltx', tags: ['4K', '50FPS', 'Audio'], gradient: 'from-emerald-500 to-cyan-500' },
+    { name: 'Magnific', typeKey: 'typeTool', descKey: 'magnific', tags: ['16x', '10K'], gradient: 'from-amber-500 to-yellow-500' },
+];
+
+const TICKER_MODELS = ['Kling', 'Runway', 'Seedream', 'Minimax', 'Wan', 'Seedance', 'PixVerse', 'LTX', 'Magnific'];
+
+const LandingPage: React.FC<LandingPageProps> = ({ onLaunch }) => {
+    const [showAuth, setShowAuth] = useState(false);
+    const { isLoggedIn, userPhone, userEmail, logout } = useGeneration();
+
+    const handleAuthSuccess = () => {
+        setShowAuth(false);
+        onLaunch();
+    };
+
+    return (
+        <div className="min-h-screen bg-[#09090b] text-white font-sans overflow-x-hidden selection:bg-violet-500/30 scroll-smooth">
+            <AnimatePresence>
+                {showAuth && (
+                    <AuthPage onClose={() => setShowAuth(false)} onSuccess={handleAuthSuccess} />
+                )}
+            </AnimatePresence>
+
+            {/* Navbar */}
+            <nav className="fixed top-0 left-0 right-0 z-50 bg-[#09090b]/80 backdrop-blur-xl border-b border-white/5 px-6 py-4 flex justify-between items-center">
+                <div className="flex items-center space-x-3">
+                    <img src="/logo.png" alt="Smile AI" className="w-9 h-9 rounded-xl glow-gradient" />
+                    <span className="text-lg font-semibold tracking-tight">Smile AI Studio</span>
+                </div>
+                <div className="hidden md:flex items-center space-x-8 text-sm text-zinc-400">
+                    <a href="#features" className="hover:text-white transition-colors">功能</a>
+                    <a href="#models" className="hover:text-white transition-colors">模型</a>
+                    <a href="#pricing" className="hover:text-white transition-colors">价格</a>
+                </div>
+                <div className="flex items-center space-x-3">
+                    {isLoggedIn ? (
+                        <>
+                            <div className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-white/5 text-sm text-zinc-300">
+                                <User className="w-4 h-4" />
+                                <span>{userEmail ? `${userEmail.slice(0, 1)}***@${userEmail.split('@')[1]}` : userPhone ? `${userPhone.slice(0, 3)}****${userPhone.slice(-4)}` : ''}</span>
+                            </div>
+                            <button onClick={logout} className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors">
+                                退出
+                            </button>
+                        </>
+                    ) : (
+                        <button onClick={() => setShowAuth(true)} className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors">
+                            登录
+                        </button>
+                    )}
+                    <button onClick={() => { if (isLoggedIn) onLaunch(); else setShowAuth(true); }} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-violet-500 text-white font-semibold text-sm hover:shadow-lg hover:shadow-violet-500/25 transition-all">
+                        开始创作
+                    </button>
+                </div>
+            </nav>
+
+            {/* Hero */}
+            <section className="relative pt-32 pb-24 px-6 flex flex-col items-center text-center overflow-hidden min-h-screen justify-center">
+                <div className="absolute inset-0 overflow-hidden">
+                    <div className="absolute top-1/4 left-1/3 w-[600px] h-[600px] bg-cyan-500/15 rounded-full blur-[120px] animate-pulse" style={{ animationDuration: '4s' }}></div>
+                    <div className="absolute top-1/3 right-1/4 w-[500px] h-[500px] bg-blue-500/15 rounded-full blur-[120px] animate-pulse" style={{ animationDuration: '6s' }}></div>
+                    <div className="absolute bottom-1/4 left-1/2 w-[700px] h-[500px] bg-violet-500/15 rounded-full blur-[140px] animate-pulse" style={{ animationDuration: '5s' }}></div>
+                    <div className="absolute bottom-0 right-1/3 w-[400px] h-[400px] bg-pink-500/10 rounded-full blur-[100px]"></div>
+                </div>
+                <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,black,transparent)]"></div>
+
+                <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} className="relative z-10 max-w-4xl">
+                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2 }} className="inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 mb-8">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span className="text-sm text-zinc-400">已有 <span className="text-white font-medium">1,200+</span> 创作者加入</span>
+                    </motion.div>
+
+                    <h1 className="text-5xl md:text-7xl font-bold leading-[1.1] mb-6 tracking-tight">
+                        <span className="text-white">AI 驱动的</span>
+                        <br />
+                        <span className="text-gradient-primary">视觉创作平台</span>
+                    </h1>
+
+                    <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+                        集成 9 大顶级 AI 模型，一站式完成图片生成、视频创作、高清放大。
+                        <br className="hidden md:block" />
+                        专业创作，从未如此简单。
+                    </p>
+
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                        <motion.button onClick={() => { if (isLoggedIn) onLaunch(); else setShowAuth(true); }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="group px-8 py-4 rounded-xl gradient-primary text-white font-semibold shadow-xl shadow-violet-500/25 hover:shadow-violet-500/40 transition-all flex items-center space-x-2">
+                            <span>免费开始</span>
+                            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                        </motion.button>
+                        <button onClick={() => document.getElementById('models')?.scrollIntoView({ behavior: 'smooth' })} className="px-8 py-4 rounded-xl border border-white/10 text-zinc-300 font-medium hover:bg-white/5 transition-all flex items-center space-x-2">
+                            <Play className="w-4 h-4" />
+                            <span>了解更多</span>
+                        </button>
+                    </div>
+
+                    <div className="flex flex-wrap justify-center gap-8 mt-16 pt-8 border-t border-white/5">
+                        {[{ value: '50,000+', label: '作品生成' }, { value: '8s', label: '平均耗时' }, { value: '99.9%', label: '服务可用' }].map((stat, i) => (
+                            <div key={i} className="text-center">
+                                <div className="text-2xl font-bold text-white">{stat.value}</div>
+                                <div className="text-sm text-zinc-500">{stat.label}</div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Model name ticker */}
+                    <div className="mt-12 overflow-hidden relative">
+                        <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-[#09090b] to-transparent z-10"></div>
+                        <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-[#09090b] to-transparent z-10"></div>
+                        <div className="flex space-x-8 animate-marquee">
+                            {[...TICKER_MODELS, ...TICKER_MODELS].map((name, i) => (
+                                <span key={i} className="text-sm text-zinc-600 font-medium whitespace-nowrap">{name}</span>
+                            ))}
+                        </div>
+                    </div>
+                </motion.div>
+            </section>
+
+            {/* Model Showcase */}
+            <section id="models" className="py-28 px-6 max-w-6xl mx-auto scroll-mt-20">
+                <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-16">
+                    <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-violet-500/10 text-violet-400 border border-violet-500/20 mb-4">模型矩阵</span>
+                    <h2 className="text-3xl md:text-4xl font-bold mb-3">集成 9 大顶级 AI 模型</h2>
+                    <p className="text-zinc-500 max-w-lg mx-auto">覆盖图片、视频、放大全场景</p>
+                </motion.div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {MODEL_SHOWCASE.map((model, i) => (
+                        <motion.div
+                            key={model.name}
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ delay: i * 0.05 }}
+                            className="group relative p-6 rounded-2xl bg-zinc-900/50 border border-white/5 hover:border-white/15 transition-all overflow-hidden"
+                        >
+                            <div className={`absolute top-0 left-0 w-1 h-full bg-gradient-to-b ${model.gradient} opacity-50 group-hover:opacity-100 transition-opacity`}></div>
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-semibold text-white">{model.name}</h3>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                                    model.type === '图片' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' :
+                                    model.type === '视频' ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' :
+                                    'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                }`}>{model.type}</span>
+                            </div>
+                            <p className="text-sm text-zinc-400 mb-3">{model.desc}</p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {model.tags.map(tag => (
+                                    <span key={tag} className="px-2 py-0.5 rounded text-[10px] bg-white/5 text-zinc-500">{tag}</span>
+                                ))}
+                            </div>
+                        </motion.div>
+                    ))}
+                </div>
+            </section>
+
+            {/* Features */}
+            <section id="features" className="py-28 px-6 max-w-6xl mx-auto scroll-mt-20">
+                <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-16">
+                    <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20 mb-4">核心功能</span>
+                    <h2 className="text-3xl md:text-4xl font-bold mb-3">一站式创作工具</h2>
+                    <p className="text-zinc-500 max-w-lg mx-auto">集成业界领先的 AI 模型，满足所有视觉创作需求</p>
+                </motion.div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="lg:col-span-2 group relative p-8 rounded-2xl bg-gradient-to-br from-zinc-900 to-zinc-900/50 border border-white/5 hover:border-cyan-500/30 transition-all overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="relative z-10">
+                            <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mb-5">
+                                <Video className="w-6 h-6 text-cyan-400" />
+                            </div>
+                            <h3 className="text-xl font-semibold mb-2">文生视频</h3>
+                            <p className="text-zinc-400 mb-4 leading-relaxed">支持 Kling、Minimax、Runway 等 7 大模型，文字描述即可生成电影级视频。</p>
+                            <div className="flex flex-wrap gap-2">
+                                <span className="px-3 py-1 rounded-full text-xs bg-white/5 text-zinc-400">4K 输出</span>
+                                <span className="px-3 py-1 rounded-full text-xs bg-white/5 text-zinc-400">50 FPS</span>
+                                <span className="px-3 py-1 rounded-full text-xs bg-white/5 text-zinc-400">7 大模型</span>
+                            </div>
+                        </div>
+                    </motion.div>
+
+                    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }} className="group relative p-8 rounded-2xl bg-gradient-to-br from-zinc-900 to-zinc-900/50 border border-white/5 hover:border-violet-500/30 transition-all overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="relative z-10">
+                            <div className="w-12 h-12 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center mb-5">
+                                <ImageIcon className="w-6 h-6 text-violet-400" />
+                            </div>
+                            <h3 className="text-xl font-semibold mb-2">图片生成</h3>
+                            <p className="text-zinc-400 leading-relaxed">Seedream 4.5 高质量文生图，8 种画面比例，风格多样。</p>
+                        </div>
+                    </motion.div>
+
+                    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.2 }} className="group relative p-8 rounded-2xl bg-gradient-to-br from-zinc-900 to-zinc-900/50 border border-amber-500/20 hover:border-amber-500/40 transition-all overflow-hidden">
+                        <div className="absolute top-0 right-0 px-3 py-1 rounded-bl-xl bg-amber-500/10 border-l border-b border-amber-500/20">
+                            <span className="text-xs font-medium text-amber-400">官方 API</span>
+                        </div>
+                        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="relative z-10">
+                            <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-5">
+                                <Zap className="w-6 h-6 text-amber-400" />
+                            </div>
+                            <h3 className="text-xl font-semibold mb-2">10K 超清放大</h3>
+                            <p className="text-zinc-400 mb-3 leading-relaxed">Magnific 官方接口，图片放大至 10000px。</p>
+                            <span className="inline-flex items-center text-xs text-amber-400">价格仅需官方 1/10</span>
+                        </div>
+                    </motion.div>
+
+                    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.3 }} className="lg:col-span-2 group relative p-8 rounded-2xl bg-gradient-to-br from-zinc-900 to-zinc-900/50 border border-white/5 hover:border-pink-500/30 transition-all overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-pink-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="relative z-10 flex items-center justify-between">
+                            <div>
+                                <div className="w-12 h-12 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center mb-5">
+                                    <Sparkles className="w-6 h-6 text-pink-400" />
+                                </div>
+                                <h3 className="text-xl font-semibold mb-2">风格预设库</h3>
+                                <p className="text-zinc-400 leading-relaxed">赛博朋克、吉卜力、写实摄影...丰富风格一键应用。</p>
+                            </div>
+                        </div>
+                    </motion.div>
+                </div>
+            </section>
+
+            {/* Pricing Preview */}
+            <section id="pricing" className="py-28 px-6 bg-gradient-to-b from-zinc-900/50 to-[#09090b] scroll-mt-20">
+                <div className="max-w-5xl mx-auto">
+                    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-16">
+                        <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-4">价格方案</span>
+                        <h2 className="text-3xl md:text-4xl font-bold mb-3">简单透明的定价</h2>
+                        <p className="text-zinc-500">选择适合你的方案，随时升级</p>
+                    </motion.div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="p-8 rounded-2xl bg-zinc-900/50 border border-white/5 hover:border-white/10 transition-all">
+                            <div className="text-zinc-400 text-sm font-medium mb-2">免费版</div>
+                            <div className="text-4xl font-bold mb-1">¥0</div>
+                            <div className="text-zinc-500 text-sm mb-6">永久免费</div>
+                            <ul className="space-y-3 mb-8">
+                                {['注册送 188 积分', '每日登录 +10 积分', '1 个并发任务'].map((item, i) => (
+                                    <li key={i} className="flex items-center text-sm text-zinc-400">
+                                        <Check className="w-4 h-4 mr-3 text-emerald-500" />{item}
+                                    </li>
+                                ))}
+                            </ul>
+                            <button onClick={() => { if (isLoggedIn) onLaunch(); else setShowAuth(true); }} className="w-full py-3 rounded-xl border border-white/10 text-zinc-300 font-medium hover:bg-white/5 transition-all">免费开始</button>
+                        </motion.div>
+
+                        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }} className="p-8 rounded-2xl bg-zinc-900/50 border border-white/5 hover:border-white/10 transition-all">
+                            <div className="text-cyan-400 text-sm font-medium mb-2">入门版</div>
+                            <div className="text-4xl font-bold mb-1">¥19.9<span className="text-lg text-zinc-500 font-normal">/月</span></div>
+                            <div className="text-zinc-500 text-sm mb-6">轻度创作者</div>
+                            <ul className="space-y-3 mb-8">
+                                {['每月 2,000 积分', '3 图片 + 1 视频并发', '全部模型权限'].map((item, i) => (
+                                    <li key={i} className="flex items-center text-sm text-zinc-300">
+                                        <Check className="w-4 h-4 mr-3 text-cyan-400" />{item}
+                                    </li>
+                                ))}
+                            </ul>
+                            <button onClick={onLaunch} className="w-full py-3 rounded-xl border border-white/10 text-zinc-300 font-medium hover:bg-white/5 transition-all">立即升级</button>
+                        </motion.div>
+
+                        <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.2 }} className="p-8 rounded-2xl bg-gradient-to-b from-violet-500/10 to-zinc-900/50 border border-violet-500/30 relative">
+                            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-gradient-to-r from-blue-500 to-violet-500 text-white text-xs font-semibold">推荐</div>
+                            <div className="text-violet-400 text-sm font-medium mb-2">旗舰版</div>
+                            <div className="text-4xl font-bold mb-1">¥99<span className="text-lg text-zinc-500 font-normal">/月</span></div>
+                            <div className="text-zinc-500 text-sm mb-6">专业创作者</div>
+                            <ul className="space-y-3 mb-8">
+                                {['每月 15,000 积分', '无限并发', '历史保存 7 天', '优先体验新模型'].map((item, i) => (
+                                    <li key={i} className="flex items-center text-sm text-zinc-300">
+                                        <Check className="w-4 h-4 mr-3 text-violet-400" />{item}
+                                    </li>
+                                ))}
+                            </ul>
+                            <button onClick={onLaunch} className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-500 to-violet-500 text-white font-semibold hover:shadow-lg hover:shadow-violet-500/25 transition-all">立即升级</button>
+                        </motion.div>
+                    </div>
+
+                    <div className="text-center mt-8">
+                        <button onClick={onLaunch} className="text-sm text-violet-400 hover:text-violet-300 transition-colors">
+                            查看全部 5 个套餐 →
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            {/* Footer */}
+            <footer className="py-12 px-6 border-t border-white/5">
+                <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+                    <div className="flex items-center space-x-3">
+                        <img src="/logo.png" alt="Smile AI" className="w-8 h-8 rounded-lg" />
+                        <span className="font-semibold">Smile AI Studio</span>
+                    </div>
+                    <div className="flex items-center gap-6 text-sm text-zinc-500">
+                        <a href="#" className="hover:text-white transition-colors">服务条款</a>
+                        <a href="#" className="hover:text-white transition-colors">隐私政策</a>
+                        <a href="#" className="hover:text-white transition-colors">帮助中心</a>
+                    </div>
+                    <p className="text-zinc-600 text-sm">&copy; 2026 Smile AI Studio</p>
+                </div>
+            </footer>
+        </div>
+    );
+};
+
+export default LandingPage;

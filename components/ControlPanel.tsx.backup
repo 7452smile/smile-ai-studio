@@ -1,0 +1,2988 @@
+import React, { useRef, useState, useCallback, memo, useMemo, useEffect } from 'react';
+import { AppMode, AspectRatio, GenerationStatus, MinimaxResolution, MinimaxDuration, MinimaxModelVersion, WanModelVersion, WanResolution, WanDuration, WanSize720p, WanSize1080p, WanShotType, SeedanceModelVersion, SeedanceAspectRatio, PixVerseMode, PixVerseResolution, PixVerseDuration, PixVerseStyle, LtxResolution, LtxDuration, LtxFps, RunwayModelVersion, RunwayRatio, RunwayDuration, KlingModelVersion, KlingAspectRatio, KlingDuration, KlingShotType, KlingMultiPromptItem, MagnificScaleFactor, MagnificOptimizedFor, MagnificEngine, PrecisionScaleFactor, PrecisionFlavor } from '../types';
+import { Wand2, UploadCloud, X, Hash, Zap, HelpCircle, Plus, ChevronDown, Shield, ShieldOff, Sparkles, Clock, Monitor, ImageIcon, Film, Volume2, VolumeX, Video, Palette, ArrowRightLeft, Link, Trash2, Users, Focus, Layers, Undo2 } from 'lucide-react';
+
+import { useGeneration } from '../context/GenerationContext';
+import { improvePrompt } from '../services/api';
+
+// Tooltip 组件 - 下方显示
+const Tooltip: React.FC<{ text: string; children: React.ReactNode }> = memo(({ text, children }) => (
+  <div className="relative group inline-flex">
+    {children}
+    <div className="absolute top-full left-0 mt-2 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-xs text-zinc-300 w-56 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-lg">
+      {text}
+    </div>
+  </div>
+));
+
+// 画面比例选项 - 带描述
+const ASPECT_RATIO_OPTIONS = [
+  { ratio: AspectRatio.Square, label: '1:1', name: '方形' },
+  { ratio: AspectRatio.Landscape, label: '16:9', name: '宽屏' },
+  { ratio: AspectRatio.Portrait, label: '9:16', name: '竖屏' },
+  { ratio: AspectRatio.Portrait_2_3, label: '2:3', name: '竖版' },
+  { ratio: AspectRatio.Traditional_3_4, label: '3:4', name: '传统竖' },
+  { ratio: AspectRatio.Standard_3_2, label: '3:2', name: '标准横' },
+  { ratio: AspectRatio.Classic_4_3, label: '4:3', name: '经典' },
+  { ratio: AspectRatio.Cinematic, label: '21:9', name: '电影' },
+];
+
+const ControlPanel: React.FC = memo(() => {
+  const {
+    activeMode: mode,
+    imageModel,
+    videoModel,
+    upscaleModel, setUpscaleModel,
+    // 图片创作参数
+    imagePrompt, setImagePrompt,
+    imageSeed, setImageSeed,
+    imageAspectRatio, setImageAspectRatio,
+    imageReferenceImages, setImageReferenceImages,
+    imageSafetyChecker, setImageSafetyChecker,
+    // 视频生成参数
+    videoPrompt, setVideoPrompt,
+    videoFirstFrame, setVideoFirstFrame,
+    // Minimax 参数
+    minimaxModelVersion, setMinimaxModelVersion,
+    minimaxResolution, setMinimaxResolution,
+    minimaxDuration, setMinimaxDuration,
+    minimaxPromptOptimizer, setMinimaxPromptOptimizer,
+    minimaxLastFrameImage, setMinimaxLastFrameImage,
+    // Wan 参数
+    wanModelVersion, setWanModelVersion,
+    wanResolution, setWanResolution,
+    wanDuration, setWanDuration,
+    wanSize, setWanSize,
+    wanNegativePrompt, setWanNegativePrompt,
+    wanEnablePromptExpansion, setWanEnablePromptExpansion,
+    wanShotType, setWanShotType,
+    wanSeed, setWanSeed,
+    // Seedance 参数
+    seedanceModelVersion, setSeedanceModelVersion,
+    seedanceDuration, setSeedanceDuration,
+    seedanceAspectRatio, setSeedanceAspectRatio,
+    seedanceCameraFixed, setSeedanceCameraFixed,
+    seedanceGenerateAudio, setSeedanceGenerateAudio,
+    seedanceSeed, setSeedanceSeed,
+    // PixVerse 参数
+    pixverseMode, setPixverseMode,
+    pixverseResolution, setPixverseResolution,
+    pixverseDuration, setPixverseDuration,
+    pixverseNegativePrompt, setPixverseNegativePrompt,
+    pixverseStyle, setPixverseStyle,
+    pixverseSeed, setPixverseSeed,
+    pixverseLastFrameImage, setPixverseLastFrameImage,
+    // LTX 参数
+    ltxResolution, setLtxResolution,
+    ltxDuration, setLtxDuration,
+    ltxFps, setLtxFps,
+    ltxGenerateAudio, setLtxGenerateAudio,
+    ltxSeed, setLtxSeed,
+    // RunWay 参数
+    runwayModelVersion, setRunwayModelVersion,
+    runwayRatio, setRunwayRatio,
+    runwayDuration, setRunwayDuration,
+    runwaySeed, setRunwaySeed,
+    // Kling 参数
+    klingModelVersion, setKlingModelVersion,
+    klingDuration, setKlingDuration,
+    klingAspectRatio, setKlingAspectRatio,
+    klingNegativePrompt, setKlingNegativePrompt,
+    klingCfgScale, setKlingCfgScale,
+    klingGenerateAudio, setKlingGenerateAudio,
+    klingShotType, setKlingShotType,
+    klingSeed, setKlingSeed,
+    klingEndImage, setKlingEndImage,
+    klingReferenceVideoUrl, setKlingReferenceVideoUrl,
+    // Kling 新增参数
+    klingElements, setKlingElements,
+    klingMultiPromptEnabled, setKlingMultiPromptEnabled,
+    klingMultiPrompts, setKlingMultiPrompts,
+    // 放大参数
+    upscaleImage, setUpscaleImage,
+    upscaleImageDimensions,
+    upscalePrompt, setUpscalePrompt,
+    // 创意放大参数
+    magnificScaleFactor, setMagnificScaleFactor,
+    magnificOptimizedFor, setMagnificOptimizedFor,
+    magnificCreativity, setMagnificCreativity,
+    magnificHdr, setMagnificHdr,
+    magnificResemblance, setMagnificResemblance,
+    magnificFractality, setMagnificFractality,
+    magnificEngine, setMagnificEngine,
+    // 精准放大参数
+    precisionScaleFactor, setPrecisionScaleFactor,
+    precisionFlavor, setPrecisionFlavor,
+    precisionSharpen, setPrecisionSharpen,
+    precisionSmartGrain, setPrecisionSmartGrain,
+    precisionUltraDetail, setPrecisionUltraDetail,
+    // Actions
+    handleGenerate,
+    status,
+    addNotification,
+    // Credits
+    userCredits,
+    estimatedCost
+  } = useGeneration();
+
+  const isGenerating = status === GenerationStatus.Generating;
+
+  const [ratioDropdownOpen, setRatioDropdownOpen] = useState(false);
+  const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
+  const [preOptimizePrompt, setPreOptimizePrompt] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const lastFrameInputRef = useRef<HTMLInputElement>(null);
+  const promptTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const MAX_FILE_SIZE = 10 * 1024 * 1024;
+  const MAX_IMAGES = 5;
+  const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+  // 根据模式获取当前的 prompt 和 setPrompt
+  const currentPrompt = mode === AppMode.ImageCreation ? imagePrompt
+    : mode === AppMode.VideoGeneration ? videoPrompt
+    : upscalePrompt;
+
+  const setCurrentPrompt = mode === AppMode.ImageCreation ? setImagePrompt
+    : mode === AppMode.VideoGeneration ? setVideoPrompt
+    : setUpscalePrompt;
+
+  const handleOptimizePrompt = useCallback(async () => {
+    const text = promptTextareaRef.current?.value || currentPrompt;
+    if (!text.trim() || isOptimizingPrompt) return;
+    const modality = mode === AppMode.VideoGeneration ? 'video' : 'image';
+    setIsOptimizingPrompt(true);
+    try {
+      const result = await improvePrompt(text.trim(), modality);
+      if (result.success && result.text) {
+        setPreOptimizePrompt(text);
+        setCurrentPrompt(result.text);
+        if (promptTextareaRef.current) {
+          promptTextareaRef.current.value = result.text;
+        }
+      } else {
+        addNotification('提示词优化失败', result.error || '请稍后重试', 'error');
+      }
+    } catch {
+      addNotification('网络错误', '提示词优化请求失败', 'error');
+    }
+    setIsOptimizingPrompt(false);
+  }, [currentPrompt, mode, isOptimizingPrompt, setCurrentPrompt, addNotification]);
+
+  const handleUndoOptimize = useCallback(() => {
+    if (preOptimizePrompt === null) return;
+    setCurrentPrompt(preOptimizePrompt);
+    if (promptTextareaRef.current) {
+      promptTextareaRef.current.value = preOptimizePrompt;
+    }
+    setPreOptimizePrompt(null);
+  }, [preOptimizePrompt, setCurrentPrompt]);
+
+  // 使用 useCallback 优化回调函数
+  const handleRatioSelect = useCallback((ratio: AspectRatio) => {
+    setImageAspectRatio(ratio);
+    setRatioDropdownOpen(false);
+  }, [setImageAspectRatio]);
+
+  const toggleRatioDropdown = useCallback(() => {
+    setRatioDropdownOpen(prev => !prev);
+  }, []);
+
+  // 图片创作 - 参考图片处理
+  const validateAndAddReferenceImages = useCallback((files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    const validFiles: File[] = [];
+
+    for (const file of fileArray) {
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        addNotification('文件类型错误', `${file.name}: 请上传 JPG、PNG 或 WebP 格式`, 'error');
+        continue;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        addNotification('文件过大', `${file.name}: 大小不能超过 10MB`, 'error');
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    if (validFiles.length > 0) {
+      setImageReferenceImages(prev => {
+        const newImages = [...prev, ...validFiles].slice(0, MAX_IMAGES);
+        if (prev.length + validFiles.length > MAX_IMAGES) {
+          addNotification('图片数量限制', `最多只能上传 ${MAX_IMAGES} 张图片`, 'info');
+        }
+        return newImages;
+      });
+    }
+  }, [addNotification, setImageReferenceImages]);
+
+  const removeReferenceImage = useCallback((index: number) => {
+    setImageReferenceImages(prev => prev.filter((_, i) => i !== index));
+  }, [setImageReferenceImages]);
+
+  // 视频生成 - 首帧图片处理
+  const handleFirstFrameUpload = useCallback(async (files: FileList | File[]) => {
+    const file = Array.from(files)[0];
+    if (!file) return;
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      addNotification('文件类型错误', '请上传 JPG、PNG 或 WebP 格式', 'error');
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      addNotification('文件过大', '大小不能超过 10MB', 'error');
+      return;
+    }
+
+    // Minimax 特殊限制：短边 > 300px，宽高比在 2:5 ~ 5:2 之间，最大 20MB
+    if (videoModel === 'minimax') {
+      if (file.size > 20 * 1024 * 1024) {
+        addNotification('文件过大', 'Minimax 要求图片不超过 20MB', 'error');
+        return;
+      }
+      // 检查图片尺寸
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      try {
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error('图片加载失败'));
+          img.src = url;
+        });
+        const minSide = Math.min(img.width, img.height);
+        const ratio = img.width / img.height;
+        URL.revokeObjectURL(url);
+
+        if (minSide <= 300) {
+          addNotification('图片尺寸过小', 'Minimax 要求图片短边必须大于 300 像素', 'error');
+          return;
+        }
+        if (ratio < 0.4 || ratio > 2.5) {
+          addNotification('宽高比不符', 'Minimax 要求图片宽高比在 2:5 到 5:2 之间', 'error');
+          return;
+        }
+      } catch {
+        URL.revokeObjectURL(url);
+        addNotification('图片加载失败', '无法读取图片信息', 'error');
+        return;
+      }
+    }
+
+    setVideoFirstFrame(file);
+  }, [addNotification, setVideoFirstFrame, videoModel]);
+
+  const removeFirstFrame = useCallback(() => {
+    setVideoFirstFrame(null);
+  }, [setVideoFirstFrame]);
+
+  // 放大 - 图片处理（限制 50MB）
+  const UPSCALE_MAX_FILE_SIZE = 50 * 1024 * 1024;
+  const handleUpscaleImageUpload = useCallback((files: FileList | File[]) => {
+    const file = Array.from(files)[0];
+    if (!file) return;
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      addNotification('文件类型错误', '请上传 JPG、PNG 或 WebP 格式', 'error');
+      return;
+    }
+    if (file.size > UPSCALE_MAX_FILE_SIZE) {
+      addNotification('文件过大', '大小不能超过 50MB', 'error');
+      return;
+    }
+    setUpscaleImage(file);
+  }, [addNotification, setUpscaleImage]);
+
+  const removeUpscaleImage = useCallback(() => {
+    setUpscaleImage(null);
+  }, [setUpscaleImage]);
+
+  // 缓存图片预览 URL
+  const referenceImagePreviewUrls = useMemo(() => {
+    return imageReferenceImages.map(file => URL.createObjectURL(file));
+  }, [imageReferenceImages]);
+
+  const firstFramePreviewUrl = useMemo(() => {
+    return videoFirstFrame ? URL.createObjectURL(videoFirstFrame) : null;
+  }, [videoFirstFrame]);
+
+  const upscaleImagePreviewUrl = useMemo(() => {
+    return upscaleImage ? URL.createObjectURL(upscaleImage) : null;
+  }, [upscaleImage]);
+
+  const lastFramePreviewUrl = useMemo(() => {
+    return minimaxLastFrameImage ? URL.createObjectURL(minimaxLastFrameImage) : null;
+  }, [minimaxLastFrameImage]);
+
+  const pixverseLastFramePreviewUrl = useMemo(() => {
+    return pixverseLastFrameImage ? URL.createObjectURL(pixverseLastFrameImage) : null;
+  }, [pixverseLastFrameImage]);
+
+  const klingEndImagePreviewUrl = useMemo(() => {
+    return klingEndImage ? URL.createObjectURL(klingEndImage) : null;
+  }, [klingEndImage]);
+
+  // 清理旧的 URL
+  useEffect(() => {
+    return () => {
+      referenceImagePreviewUrls.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [referenceImagePreviewUrls]);
+
+  useEffect(() => {
+    return () => {
+      if (firstFramePreviewUrl) URL.revokeObjectURL(firstFramePreviewUrl);
+    };
+  }, [firstFramePreviewUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (upscaleImagePreviewUrl) URL.revokeObjectURL(upscaleImagePreviewUrl);
+    };
+  }, [upscaleImagePreviewUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (lastFramePreviewUrl) URL.revokeObjectURL(lastFramePreviewUrl);
+    };
+  }, [lastFramePreviewUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (pixverseLastFramePreviewUrl) URL.revokeObjectURL(pixverseLastFramePreviewUrl);
+    };
+  }, [pixverseLastFramePreviewUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (klingEndImagePreviewUrl) URL.revokeObjectURL(klingEndImagePreviewUrl);
+    };
+  }, [klingEndImagePreviewUrl]);
+
+  // Minimax 尾帧图片上传处理
+  const handleLastFrameUpload = useCallback(async (files: FileList | File[]) => {
+    const file = Array.from(files)[0];
+    if (!file) return;
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      addNotification('文件类型错误', '请上传 JPG、PNG 或 WebP 格式', 'error');
+      return;
+    }
+    // Minimax 特殊限制：短边 > 300px，宽高比在 2:5 ~ 5:2 之间，最大 20MB
+    if (file.size > 20 * 1024 * 1024) {
+      addNotification('文件过大', 'Minimax 要求图片不超过 20MB', 'error');
+      return;
+    }
+    // 检查图片尺寸
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('图片加载失败'));
+        img.src = url;
+      });
+      const minSide = Math.min(img.width, img.height);
+      const ratio = img.width / img.height;
+      URL.revokeObjectURL(url);
+
+      if (minSide <= 300) {
+        addNotification('图片尺寸过小', 'Minimax 要求图片短边必须大于 300 像素', 'error');
+        return;
+      }
+      if (ratio < 0.4 || ratio > 2.5) {
+        addNotification('宽高比不符', 'Minimax 要求图片宽高比在 2:5 到 5:2 之间', 'error');
+        return;
+      }
+    } catch {
+      URL.revokeObjectURL(url);
+      addNotification('图片加载失败', '无法读取图片信息', 'error');
+      return;
+    }
+
+    setMinimaxLastFrameImage(file);
+  }, [addNotification, setMinimaxLastFrameImage]);
+
+  const removeLastFrameImage = useCallback(() => {
+    setMinimaxLastFrameImage(null);
+  }, [setMinimaxLastFrameImage]);
+
+  // PixVerse 尾帧图片上传处理
+  const pixverseLastFrameInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePixverseLastFrameUpload = useCallback((files: FileList | File[]) => {
+    const file = Array.from(files)[0];
+    if (!file) return;
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      addNotification('文件类型错误', '请上传 JPG、PNG 或 WebP 格式', 'error');
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      addNotification('文件过大', '大小不能超过 10MB', 'error');
+      return;
+    }
+    setPixverseLastFrameImage(file);
+  }, [addNotification, setPixverseLastFrameImage]);
+
+  const removePixverseLastFrameImage = useCallback(() => {
+    setPixverseLastFrameImage(null);
+  }, [setPixverseLastFrameImage]);
+
+  // Kling 尾帧图片上传处理
+  const klingEndImageInputRef = useRef<HTMLInputElement>(null);
+
+  const handleKlingEndImageUpload = useCallback((files: FileList | File[]) => {
+    const file = Array.from(files)[0];
+    if (!file) return;
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      addNotification('文件类型错误', '请上传 JPG、PNG 或 WebP 格式', 'error');
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      addNotification('文件过大', '大小不能超过 10MB', 'error');
+      return;
+    }
+    setKlingEndImage(file);
+  }, [addNotification, setKlingEndImage]);
+
+  const removeKlingEndImage = useCallback(() => {
+    setKlingEndImage(null);
+  }, [setKlingEndImage]);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      if (mode === AppMode.ImageCreation) {
+        validateAndAddReferenceImages(e.dataTransfer.files);
+      } else if (mode === AppMode.VideoGeneration) {
+        handleFirstFrameUpload(e.dataTransfer.files);
+      } else if (mode === AppMode.Upscale) {
+        handleUpscaleImageUpload(e.dataTransfer.files);
+      }
+    }
+  };
+
+  const isGenerateDisabled = () => {
+    if (isGenerating) return true;
+    if (mode === AppMode.Upscale && !upscaleImage) return true;
+    if (mode === AppMode.Upscale && upscaleImageDimensions) {
+      const factor = upscaleModel === 'creative'
+        ? parseInt(magnificScaleFactor.replace('x', ''))
+        : precisionScaleFactor;
+      const totalPixels = upscaleImageDimensions.width * factor * upscaleImageDimensions.height * factor;
+      if (totalPixels > 100_000_000) return true;
+    }
+    if (!currentPrompt && mode !== AppMode.Upscale) return true;
+    return false;
+  };
+
+  const renderModelSelector = () => {
+    if (mode === AppMode.Upscale) {
+      return (
+        <div className="space-y-3 mb-6">
+          <label className="text-xs font-medium text-content-tertiary uppercase tracking-wider">Magnific 高清放大</label>
+          <div className="grid grid-cols-1 gap-2">
+            <button
+              onClick={() => setUpscaleModel('creative')}
+              className={`card-interactive p-4 text-left ${upscaleModel === 'creative' ? 'border-accent bg-accent-subtle' : ''}`}
+            >
+              <div className="flex justify-between items-center mb-1">
+                <span className="font-medium text-sm text-content">创意放大</span>
+                {upscaleModel === 'creative' && <Zap className="w-4 h-4 text-accent" />}
+              </div>
+              <p className="text-xs text-content-tertiary">AI 增强细节，适合低清图或艺术创作</p>
+            </button>
+
+            <button
+              onClick={() => setUpscaleModel('precision')}
+              className={`card-interactive p-4 text-left ${upscaleModel === 'precision' ? 'border-accent bg-accent-subtle' : ''}`}
+            >
+              <div className="flex justify-between items-center mb-1">
+                <span className="font-medium text-sm text-content">精准放大</span>
+                {upscaleModel === 'precision' && <Zap className="w-4 h-4 text-accent" />}
+              </div>
+              <p className="text-xs text-content-tertiary">保持原图风格，智能提升分辨率</p>
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Magnific 放大设置面板
+  const renderMagnificSettings = () => {
+    if (mode !== AppMode.Upscale) return null;
+
+    const scaleFactorOptions: { value: MagnificScaleFactor; label: string }[] = [
+      { value: '2x', label: '2x' },
+      { value: '4x', label: '4x' },
+      { value: '8x', label: '8x' },
+      { value: '16x', label: '16x' },
+    ];
+
+    const optimizedForOptions: { value: MagnificOptimizedFor; label: string }[] = [
+      { value: 'standard', label: '标准' },
+      { value: 'soft_portraits', label: '柔和人像' },
+      { value: 'hard_portraits', label: '硬朗人像' },
+      { value: 'art_n_illustration', label: '艺术插画' },
+      { value: 'videogame_assets', label: '游戏素材' },
+      { value: 'nature_n_landscapes', label: '自然风景' },
+      { value: 'films_n_photography', label: '电影摄影' },
+      { value: '3d_renders', label: '3D 渲染' },
+      { value: 'science_fiction_n_horror', label: '科幻恐怖' },
+    ];
+
+    const engineOptions: { value: MagnificEngine; label: string; desc: string }[] = [
+      { value: 'automatic', label: '自动', desc: '智能选择最佳引擎' },
+      { value: 'magnific_illusio', label: 'Illusio', desc: '适合插画和艺术' },
+      { value: 'magnific_sharpy', label: 'Sharpy', desc: '锐化增强' },
+      { value: 'magnific_sparkle', label: 'Sparkle', desc: '细节增强' },
+    ];
+
+    const flavorOptions: { value: PrecisionFlavor; label: string; desc: string }[] = [
+      { value: 'sublime', label: 'Sublime', desc: '艺术插画优化' },
+      { value: 'photo', label: 'Photo', desc: '照片优化' },
+      { value: 'photo_denoiser', label: 'Photo Denoiser', desc: '照片降噪' },
+    ];
+
+    if (upscaleModel === 'creative') {
+      return (
+        <div className="space-y-4 pt-4 border-t border-surface-border">
+          <div className="text-xs font-semibold uppercase tracking-wider text-gradient-accent">创意放大设置</div>
+
+          {/* 放大倍数 */}
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <Layers className="w-3 h-3" />
+              <span>放大倍数</span>
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              {scaleFactorOptions.map(option => (
+                <button
+                  key={option.value}
+                  onClick={() => setMagnificScaleFactor(option.value)}
+                  className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                    magnificScaleFactor === option.value
+                      ? 'border-accent bg-accent-subtle text-accent'
+                      : 'border-surface-border text-content hover:bg-surface-hover'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 优化类型 */}
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <Focus className="w-3 h-3" />
+              <span>优化类型</span>
+            </label>
+            <select
+              value={magnificOptimizedFor}
+              onChange={(e) => setMagnificOptimizedFor(e.target.value as MagnificOptimizedFor)}
+              className="input w-full text-sm"
+            >
+              {optimizedForOptions.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 引擎选择 */}
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <Sparkles className="w-3 h-3" />
+              <span>处理引擎</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {engineOptions.map(option => (
+                <button
+                  key={option.value}
+                  onClick={() => setMagnificEngine(option.value)}
+                  className={`px-3 py-2 rounded-lg border text-xs text-left transition-all ${
+                    magnificEngine === option.value
+                      ? 'border-accent bg-accent-subtle text-accent'
+                      : 'border-surface-border text-content hover:bg-surface-hover'
+                  }`}
+                >
+                  <div className="font-medium">{option.label}</div>
+                  <div className="text-content-tertiary text-[10px]">{option.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 创意度 */}
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <Sparkles className="w-3 h-3" />
+              <span>创意度</span>
+              <Tooltip text="控制 AI 添加细节的程度，负值更保守，正值更有创意">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="range"
+                min="-10"
+                max="10"
+                value={magnificCreativity}
+                onChange={(e) => setMagnificCreativity(parseInt(e.target.value))}
+                className="flex-1 h-2 bg-surface-border rounded-lg appearance-none cursor-pointer accent-accent"
+              />
+              <span className="text-sm text-content w-8 text-center">{magnificCreativity}</span>
+            </div>
+          </div>
+
+          {/* HDR */}
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <span>HDR 强度</span>
+              <Tooltip text="增强图像的动态范围和细节层次">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="range"
+                min="-10"
+                max="10"
+                value={magnificHdr}
+                onChange={(e) => setMagnificHdr(parseInt(e.target.value))}
+                className="flex-1 h-2 bg-surface-border rounded-lg appearance-none cursor-pointer accent-accent"
+              />
+              <span className="text-sm text-content w-8 text-center">{magnificHdr}</span>
+            </div>
+          </div>
+
+          {/* 相似度 */}
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <span>相似度</span>
+              <Tooltip text="控制与原图的相似程度，正值更接近原图">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="range"
+                min="-10"
+                max="10"
+                value={magnificResemblance}
+                onChange={(e) => setMagnificResemblance(parseInt(e.target.value))}
+                className="flex-1 h-2 bg-surface-border rounded-lg appearance-none cursor-pointer accent-accent"
+              />
+              <span className="text-sm text-content w-8 text-center">{magnificResemblance}</span>
+            </div>
+          </div>
+
+          {/* 分形度 */}
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <span>分形度</span>
+              <Tooltip text="控制提示词强度和每像素的细节复杂度">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="range"
+                min="-10"
+                max="10"
+                value={magnificFractality}
+                onChange={(e) => setMagnificFractality(parseInt(e.target.value))}
+                className="flex-1 h-2 bg-surface-border rounded-lg appearance-none cursor-pointer accent-accent"
+              />
+              <span className="text-sm text-content w-8 text-center">{magnificFractality}</span>
+            </div>
+          </div>
+        </div>
+      );
+    } else {
+      // 精准放大设置
+      return (
+        <div className="space-y-4 pt-4 border-t border-surface-border">
+          <div className="text-xs font-semibold uppercase tracking-wider text-gradient-accent">精准放大设置</div>
+
+          {/* 放大倍数 */}
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <Layers className="w-3 h-3" />
+              <span>放大倍数</span>
+            </label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="range"
+                min="2"
+                max="16"
+                value={precisionScaleFactor}
+                onChange={(e) => setPrecisionScaleFactor(parseInt(e.target.value) as PrecisionScaleFactor)}
+                className="flex-1 h-2 bg-surface-border rounded-lg appearance-none cursor-pointer accent-accent"
+              />
+              <span className="text-sm text-content w-10 text-center">{precisionScaleFactor}x</span>
+            </div>
+          </div>
+
+          {/* 处理风格 */}
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <Palette className="w-3 h-3" />
+              <span>处理风格 (可选)</span>
+            </label>
+            <div className="grid grid-cols-1 gap-2">
+              <button
+                onClick={() => setPrecisionFlavor('')}
+                className={`px-3 py-2 rounded-lg border text-xs text-left transition-all ${
+                  precisionFlavor === ''
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+                }`}
+              >
+                <div className="font-medium">自动</div>
+                <div className="text-content-tertiary text-[10px]">智能识别图片类型</div>
+              </button>
+              {flavorOptions.map(option => (
+                <button
+                  key={option.value}
+                  onClick={() => setPrecisionFlavor(option.value)}
+                  className={`px-3 py-2 rounded-lg border text-xs text-left transition-all ${
+                    precisionFlavor === option.value
+                      ? 'border-accent bg-accent-subtle text-accent'
+                      : 'border-surface-border text-content hover:bg-surface-hover'
+                  }`}
+                >
+                  <div className="font-medium">{option.label}</div>
+                  <div className="text-content-tertiary text-[10px]">{option.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 锐化 */}
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <span>锐化强度</span>
+              <Tooltip text="增强边缘清晰度，0-100">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={precisionSharpen}
+                onChange={(e) => setPrecisionSharpen(parseInt(e.target.value))}
+                className="flex-1 h-2 bg-surface-border rounded-lg appearance-none cursor-pointer accent-accent"
+              />
+              <span className="text-sm text-content w-10 text-center">{precisionSharpen}</span>
+            </div>
+          </div>
+
+          {/* 智能纹理 */}
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <span>智能纹理</span>
+              <Tooltip text="保留自然纹理和胶片颗粒感，0-100">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={precisionSmartGrain}
+                onChange={(e) => setPrecisionSmartGrain(parseInt(e.target.value))}
+                className="flex-1 h-2 bg-surface-border rounded-lg appearance-none cursor-pointer accent-accent"
+              />
+              <span className="text-sm text-content w-10 text-center">{precisionSmartGrain}</span>
+            </div>
+          </div>
+
+          {/* 超级细节 */}
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <span>超级细节</span>
+              <Tooltip text="AI 添加的微细节程度，0-100">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={precisionUltraDetail}
+                onChange={(e) => setPrecisionUltraDetail(parseInt(e.target.value))}
+                className="flex-1 h-2 bg-surface-border rounded-lg appearance-none cursor-pointer accent-accent"
+              />
+              <span className="text-sm text-content w-10 text-center">{precisionUltraDetail}</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+  };
+
+  // Minimax 专属设置面板
+  const renderMinimaxSettings = () => {
+    if (mode !== AppMode.VideoGeneration || videoModel !== 'minimax') return null;
+
+    return (
+      <div className="space-y-4 pt-4 border-t border-surface-border">
+        <div className="text-xs font-semibold uppercase tracking-wider text-gradient-accent">Minimax 设置</div>
+
+        {/* 模型版本选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Film className="w-3 h-3" />
+            <span>模型版本</span>
+          </label>
+          <div className="space-y-2">
+            <button
+              onClick={() => setMinimaxModelVersion('hailuo-2.3')}
+              className={`w-full px-3 py-2 rounded-lg border text-sm text-left transition-all ${
+                minimaxModelVersion === 'hailuo-2.3'
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              海螺 2.3
+            </button>
+            <button
+              disabled
+              className="w-full px-3 py-2 rounded-lg border text-sm text-left border-surface-border text-content-muted cursor-not-allowed opacity-50"
+            >
+              海螺 02 (已弃用)
+            </button>
+            <button
+              disabled
+              className="w-full px-3 py-2 rounded-lg border text-sm text-left border-surface-border text-content-muted cursor-not-allowed opacity-50"
+            >
+              Minimax Live (已弃用)
+            </button>
+          </div>
+        </div>
+
+        {/* 分辨率选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Monitor className="w-3 h-3" />
+            <span>分辨率</span>
+            <Tooltip text="768p 支持 6 秒和 10 秒视频，1080p 仅支持 6 秒视频">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setMinimaxResolution('768p')}
+              className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                minimaxResolution === '768p'
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              768p
+            </button>
+            <button
+              onClick={() => {
+                setMinimaxResolution('1080p');
+                setMinimaxDuration(6); // 1080p 只支持 6 秒
+              }}
+              className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                minimaxResolution === '1080p'
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              1080p
+            </button>
+          </div>
+        </div>
+
+        {/* 时长选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Clock className="w-3 h-3" />
+            <span>视频时长</span>
+            <Tooltip text="选择生成视频的时长，1080p 分辨率仅支持 6 秒">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setMinimaxDuration(6)}
+              className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                minimaxDuration === 6
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              6 秒
+            </button>
+            <button
+              onClick={() => setMinimaxDuration(10)}
+              disabled={minimaxResolution === '1080p'}
+              className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                minimaxDuration === 10
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : minimaxResolution === '1080p'
+                    ? 'border-surface-border text-content-muted cursor-not-allowed opacity-50'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              10 秒
+            </button>
+          </div>
+          {minimaxResolution === '1080p' && (
+            <p className="text-xs text-content-tertiary">1080p 分辨率仅支持 6 秒视频</p>
+          )}
+        </div>
+
+        {/* 提示词优化开关 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Sparkles className="w-3 h-3" />
+            <span>提示词优化</span>
+            <Tooltip text="开启后模型会自动优化您的提示词以提升生成质量">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <button
+            onClick={() => setMinimaxPromptOptimizer(!minimaxPromptOptimizer)}
+            className={`w-full px-3 py-2 rounded-lg border text-sm flex items-center justify-between transition-all ${
+              minimaxPromptOptimizer
+                ? 'border-green-500/50 bg-green-500/10 text-green-400'
+                : 'border-orange-500/50 bg-orange-500/10 text-orange-400'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <Sparkles className="w-4 h-4" />
+              <span>{minimaxPromptOptimizer ? '已开启' : '已关闭'}</span>
+            </div>
+          </button>
+        </div>
+
+        {/* 尾帧图片上传 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <ImageIcon className="w-3 h-3" />
+            <span>尾帧图片 (可选)</span>
+            <Tooltip text="上传一张图片作为视频的最后一帧，需要同时上传首帧图片才能使用">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+
+          {minimaxLastFrameImage && lastFramePreviewUrl ? (
+            <div className="relative w-full h-24 rounded-lg overflow-hidden group border border-surface-border">
+              <img
+                src={lastFramePreviewUrl}
+                alt="尾帧图片"
+                className="w-full h-full object-cover"
+              />
+              <button
+                onClick={removeLastFrameImage}
+                className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+          ) : (
+            <div
+              onClick={() => lastFrameInputRef.current?.click()}
+              className="w-full h-16 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all border-surface-border hover:border-content-muted hover:bg-surface-hover"
+            >
+              <input
+                type="file"
+                ref={lastFrameInputRef}
+                className="hidden"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => {
+                  if (e.target.files) handleLastFrameUpload(e.target.files);
+                  e.target.value = ''; // 重置以允许重新选择相同文件
+                }}
+              />
+              <UploadCloud className="w-4 h-4 text-content-muted mb-1" />
+              <span className="text-xs text-content-tertiary">点击上传尾帧</span>
+            </div>
+          )}
+          {!videoFirstFrame && minimaxLastFrameImage && (
+            <p className="text-xs text-orange-400">需要先上传首帧图片才能使用尾帧</p>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Wan 专属设置面板
+  const renderWanSettings = () => {
+    if (mode !== AppMode.VideoGeneration || videoModel !== 'wan') return null;
+
+    // 根据分辨率获取可用的尺寸选项
+    const sizeOptions = wanResolution === '720p'
+      ? [
+          { value: '1280*720' as WanSize720p, label: '1280×720 (横屏)' },
+          { value: '720*1280' as WanSize720p, label: '720×1280 (竖屏)' }
+        ]
+      : [
+          { value: '1920*1080' as WanSize1080p, label: '1920×1080 (横屏)' },
+          { value: '1080*1920' as WanSize1080p, label: '1080×1920 (竖屏)' }
+        ];
+
+    return (
+      <div className="space-y-4 pt-4 border-t border-surface-border">
+        <div className="text-xs font-semibold uppercase tracking-wider text-gradient-accent">Wan 设置</div>
+
+        {/* 模型版本选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Film className="w-3 h-3" />
+            <span>模型版本</span>
+          </label>
+          <div className="space-y-2">
+            <button
+              onClick={() => setWanModelVersion('wan-2.6')}
+              className={`w-full px-3 py-2 rounded-lg border text-sm text-left transition-all ${
+                wanModelVersion === 'wan-2.6'
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              Wan 2.6
+            </button>
+            <button
+              disabled
+              className="w-full px-3 py-2 rounded-lg border text-sm text-left border-surface-border text-content-muted cursor-not-allowed opacity-50"
+            >
+              Wan 2.5 (已弃用)
+            </button>
+            <button
+              disabled
+              className="w-full px-3 py-2 rounded-lg border text-sm text-left border-surface-border text-content-muted cursor-not-allowed opacity-50"
+            >
+              Wan 2.2 (已弃用)
+            </button>
+          </div>
+        </div>
+
+        {/* 分辨率选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Monitor className="w-3 h-3" />
+            <span>分辨率</span>
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                setWanResolution('720p');
+                setWanSize('1280*720');
+              }}
+              className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                wanResolution === '720p'
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              720p
+            </button>
+            <button
+              onClick={() => {
+                setWanResolution('1080p');
+                setWanSize('1920*1080');
+              }}
+              className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                wanResolution === '1080p'
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              1080p
+            </button>
+          </div>
+        </div>
+
+        {/* 尺寸方向选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <ImageIcon className="w-3 h-3" />
+            <span>画面方向</span>
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            {sizeOptions.map(option => (
+              <button
+                key={option.value}
+                onClick={() => setWanSize(option.value)}
+                className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                  wanSize === option.value
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+                }`}
+              >
+                {option.label.includes('横屏') ? '横屏' : '竖屏'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 时长选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Clock className="w-3 h-3" />
+            <span>视频时长</span>
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {(['5', '10', '15'] as WanDuration[]).map(d => (
+              <button
+                key={d}
+                onClick={() => setWanDuration(d)}
+                className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                  wanDuration === d
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+                }`}
+              >
+                {d} 秒
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 负面提示词 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <span>负面提示词 (可选)</span>
+            <Tooltip text="描述您不希望在视频中出现的元素，如：模糊、低质量、水印">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <textarea
+            defaultValue={wanNegativePrompt}
+            onBlur={(e) => setWanNegativePrompt(e.target.value)}
+            placeholder="blurry, low quality, watermark..."
+            className="input w-full h-16 resize-none text-sm"
+          />
+        </div>
+
+        {/* 提示词扩展开关 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Sparkles className="w-3 h-3" />
+            <span>提示词扩展</span>
+            <Tooltip text="开启后 AI 会自动扩展简短的提示词为详细描述">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <button
+            onClick={() => setWanEnablePromptExpansion(!wanEnablePromptExpansion)}
+            className={`w-full px-3 py-2 rounded-lg border text-sm flex items-center justify-between transition-all ${
+              wanEnablePromptExpansion
+                ? 'border-green-500/50 bg-green-500/10 text-green-400'
+                : 'border-orange-500/50 bg-orange-500/10 text-orange-400'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <Sparkles className="w-4 h-4" />
+              <span>{wanEnablePromptExpansion ? '已开启' : '已关闭'}</span>
+            </div>
+          </button>
+        </div>
+
+        {/* 镜头类型 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <span>镜头类型</span>
+            <Tooltip text="单镜头：连续单一镜头；多镜头：带场景转换的多镜头序列（需开启提示词扩展）">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setWanShotType('single')}
+              className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                wanShotType === 'single'
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              单镜头
+            </button>
+            <button
+              onClick={() => {
+                setWanShotType('multi');
+                if (!wanEnablePromptExpansion) setWanEnablePromptExpansion(true);
+              }}
+              className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                wanShotType === 'multi'
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              多镜头
+            </button>
+          </div>
+          {wanShotType === 'multi' && !wanEnablePromptExpansion && (
+            <p className="text-xs text-orange-400">多镜头模式需要开启提示词扩展</p>
+          )}
+        </div>
+
+        {/* 随机种子 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Hash className="w-3 h-3" />
+            <span>随机种子</span>
+            <Tooltip text="使用相同的种子和参数可以生成相似的结果。-1 或留空表示随机">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <input
+            type="number"
+            defaultValue={wanSeed}
+            onBlur={(e) => setWanSeed(e.target.value)}
+            placeholder="留空则随机"
+            min="-1"
+            max="2147483647"
+            className="input w-full text-xs"
+          />
+        </div>
+      </div>
+    );
+  };
+
+  // Seedance 专属设置面板
+  const renderSeedanceSettings = () => {
+    if (mode !== AppMode.VideoGeneration || videoModel !== 'seedance') return null;
+
+    // Seedance 宽高比选项
+    const seedanceAspectRatioOptions: { value: SeedanceAspectRatio; label: string }[] = [
+      { value: 'widescreen_16_9', label: '16:9 宽屏' },
+      { value: 'social_story_9_16', label: '9:16 竖屏' },
+      { value: 'square_1_1', label: '1:1 方形' },
+      { value: 'classic_4_3', label: '4:3 经典' },
+      { value: 'traditional_3_4', label: '3:4 传统竖' },
+      { value: 'film_horizontal_21_9', label: '21:9 电影横' },
+      { value: 'film_vertical_9_21', label: '9:21 电影竖' },
+    ];
+
+    // 根据模型版本获取时长范围
+    const is15Pro = seedanceModelVersion === 'seedance-1.5-pro';
+    const durationOptions = is15Pro
+      ? [4, 5, 6, 7, 8, 9, 10, 11, 12]
+      : [5, 10];
+
+    return (
+      <div className="space-y-4 pt-4 border-t border-surface-border">
+        <div className="text-xs font-semibold uppercase tracking-wider text-gradient-accent">Seedance 设置</div>
+
+        {/* 模型版本选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Film className="w-3 h-3" />
+            <span>模型版本</span>
+          </label>
+          <div className="space-y-2">
+            <button
+              onClick={() => {
+                setSeedanceModelVersion('seedance-1.5-pro');
+                // 1.5 Pro 支持 4-12 秒
+                if (seedanceDuration < 4 || seedanceDuration > 12) {
+                  setSeedanceDuration(5);
+                }
+              }}
+              className={`w-full px-3 py-2 rounded-lg border text-sm text-left transition-all ${
+                seedanceModelVersion === 'seedance-1.5-pro'
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              <div className="flex justify-between items-center">
+                <span>Seedance 1.5 Pro</span>
+                <span className="text-xs text-content-tertiary">T2V + I2V</span>
+              </div>
+              <p className="text-xs text-content-tertiary mt-1">支持音频生成，4-12秒时长</p>
+            </button>
+            <button
+              onClick={() => {
+                setSeedanceModelVersion('seedance-pro');
+                // Pro 只支持 5 或 10 秒
+                if (![5, 10].includes(seedanceDuration)) {
+                  setSeedanceDuration(5);
+                }
+              }}
+              className={`w-full px-3 py-2 rounded-lg border text-sm text-left transition-all ${
+                seedanceModelVersion === 'seedance-pro'
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              <div className="flex justify-between items-center">
+                <span>Seedance Pro</span>
+                <span className="text-xs text-content-tertiary">T2V + I2V</span>
+              </div>
+              <p className="text-xs text-content-tertiary mt-1">5或10秒时长，无音频</p>
+            </button>
+          </div>
+        </div>
+
+        {/* 时长选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Clock className="w-3 h-3" />
+            <span>视频时长</span>
+            <Tooltip text={is15Pro ? "Seedance 1.5 Pro 支持 4-12 秒" : "Seedance Pro 支持 5 或 10 秒"}>
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          {is15Pro ? (
+            <div className="flex items-center space-x-3">
+              <input
+                type="range"
+                min="4"
+                max="12"
+                value={seedanceDuration}
+                onChange={(e) => setSeedanceDuration(parseInt(e.target.value))}
+                className="flex-1 h-2 bg-surface-border rounded-lg appearance-none cursor-pointer accent-accent"
+              />
+              <span className="text-sm text-content w-12 text-center">{seedanceDuration} 秒</span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              {durationOptions.map(d => (
+                <button
+                  key={d}
+                  onClick={() => setSeedanceDuration(d)}
+                  className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                    seedanceDuration === d
+                      ? 'border-accent bg-accent-subtle text-accent'
+                      : 'border-surface-border text-content hover:bg-surface-hover'
+                  }`}
+                >
+                  {d} 秒
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 宽高比选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Monitor className="w-3 h-3" />
+            <span>画面比例</span>
+            <Tooltip text="选择视频的宽高比例。如果上传了首帧图片，比例会自动从图片检测">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            {seedanceAspectRatioOptions.slice(0, 4).map(option => (
+              <button
+                key={option.value}
+                onClick={() => setSeedanceAspectRatio(option.value)}
+                className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                  seedanceAspectRatio === option.value
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {seedanceAspectRatioOptions.slice(4).map(option => (
+              <button
+                key={option.value}
+                onClick={() => setSeedanceAspectRatio(option.value)}
+                className={`px-2 py-2 rounded-lg border text-xs transition-all ${
+                  seedanceAspectRatio === option.value
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 音频生成开关 - 仅 1.5 Pro */}
+        {is15Pro && (
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <Volume2 className="w-3 h-3" />
+              <span>音频生成</span>
+              <Tooltip text="开启后会根据提示词生成同步音频（对话、音效、音乐）">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+            <button
+              onClick={() => setSeedanceGenerateAudio(!seedanceGenerateAudio)}
+              className={`w-full px-3 py-2 rounded-lg border text-sm flex items-center justify-between transition-all ${
+                seedanceGenerateAudio
+                  ? 'border-green-500/50 bg-green-500/10 text-green-400'
+                  : 'border-orange-500/50 bg-orange-500/10 text-orange-400'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                {seedanceGenerateAudio ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                <span>{seedanceGenerateAudio ? '已开启' : '已关闭'}</span>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* 固定镜头开关 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Video className="w-3 h-3" />
+            <span>固定镜头</span>
+            <Tooltip text="开启后镜头位置固定（三脚架拍摄效果）">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <button
+            onClick={() => setSeedanceCameraFixed(!seedanceCameraFixed)}
+            className={`w-full px-3 py-2 rounded-lg border text-sm flex items-center justify-between transition-all ${
+              seedanceCameraFixed
+                ? 'border-green-500/50 bg-green-500/10 text-green-400'
+                : 'border-surface-border text-content hover:bg-surface-hover'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <Video className="w-4 h-4" />
+              <span>{seedanceCameraFixed ? '固定镜头' : '自由镜头'}</span>
+            </div>
+          </button>
+        </div>
+
+        {/* 随机种子 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Hash className="w-3 h-3" />
+            <span>随机种子</span>
+            <Tooltip text="使用相同的种子和参数可以生成相似的结果。-1 或留空表示随机">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <input
+            type="number"
+            defaultValue={seedanceSeed}
+            onBlur={(e) => setSeedanceSeed(e.target.value)}
+            placeholder="留空则随机"
+            min="-1"
+            max="4294967295"
+            className="input w-full text-xs"
+          />
+        </div>
+      </div>
+    );
+  };
+
+  // PixVerse V5 专属设置面板
+  const renderPixVerseSettings = () => {
+    if (mode !== AppMode.VideoGeneration || videoModel !== 'pixverse') return null;
+
+    // 风格选项（仅 i2v 模式）
+    const styleOptions: { value: PixVerseStyle | ''; label: string }[] = [
+      { value: '', label: '无风格' },
+      { value: 'anime', label: '动漫' },
+      { value: '3d_animation', label: '3D 动画' },
+      { value: 'clay', label: '黏土' },
+      { value: 'cyberpunk', label: '赛博朋克' },
+      { value: 'comic', label: '漫画' },
+    ];
+
+    // 分辨率选项
+    const resolutionOptions: { value: PixVerseResolution; label: string }[] = [
+      { value: '360p', label: '360p' },
+      { value: '540p', label: '540p' },
+      { value: '720p', label: '720p' },
+      { value: '1080p', label: '1080p' },
+    ];
+
+    return (
+      <div className="space-y-4 pt-4 border-t border-surface-border">
+        <div className="text-xs font-semibold uppercase tracking-wider text-gradient-accent">PixVerse V5 设置</div>
+
+        {/* 模式选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Film className="w-3 h-3" />
+            <span>生成模式</span>
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setPixverseMode('i2v')}
+              className={`px-3 py-2 rounded-lg border text-sm transition-all flex items-center justify-center space-x-1 ${
+                pixverseMode === 'i2v'
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              <ImageIcon className="w-3 h-3" />
+              <span>图生视频</span>
+            </button>
+            <button
+              onClick={() => setPixverseMode('transition')}
+              className={`px-3 py-2 rounded-lg border text-sm transition-all flex items-center justify-center space-x-1 ${
+                pixverseMode === 'transition'
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              <ArrowRightLeft className="w-3 h-3" />
+              <span>首尾帧视频</span>
+            </button>
+          </div>
+          <p className="text-xs text-content-tertiary">
+            {pixverseMode === 'i2v' ? '从首帧图片生成视频（必须上传首帧）' : '从首帧过渡到尾帧（必须上传首尾帧图片）'}
+          </p>
+        </div>
+
+        {/* 分辨率选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Monitor className="w-3 h-3" />
+            <span>分辨率</span>
+            <Tooltip text="1080p 分辨率仅支持 5 秒视频">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <div className="grid grid-cols-4 gap-2">
+            {resolutionOptions.map(option => (
+              <button
+                key={option.value}
+                onClick={() => {
+                  setPixverseResolution(option.value);
+                  // 1080p 只支持 5 秒
+                  if (option.value === '1080p') {
+                    setPixverseDuration(5);
+                  }
+                }}
+                className={`px-2 py-2 rounded-lg border text-sm transition-all ${
+                  pixverseResolution === option.value
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 时长选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Clock className="w-3 h-3" />
+            <span>视频时长</span>
+            <Tooltip text="8 秒视频消耗双倍积分，1080p 仅支持 5 秒">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setPixverseDuration(5)}
+              className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                pixverseDuration === 5
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              5 秒
+            </button>
+            <button
+              onClick={() => setPixverseDuration(8)}
+              disabled={pixverseResolution === '1080p'}
+              className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                pixverseDuration === 8
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : pixverseResolution === '1080p'
+                    ? 'border-surface-border text-content-muted cursor-not-allowed opacity-50'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              8 秒 (2x积分)
+            </button>
+          </div>
+        </div>
+
+        {/* 风格选择 - 仅 i2v 模式 */}
+        {pixverseMode === 'i2v' && (
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <Palette className="w-3 h-3" />
+              <span>视频风格</span>
+              <Tooltip text="选择视频的艺术风格，留空则保持原始风格">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {styleOptions.map(option => (
+                <button
+                  key={option.value}
+                  onClick={() => setPixverseStyle(option.value)}
+                  className={`px-2 py-2 rounded-lg border text-xs transition-all ${
+                    pixverseStyle === option.value
+                      ? 'border-accent bg-accent-subtle text-accent'
+                      : 'border-surface-border text-content hover:bg-surface-hover'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 尾帧图片上传 - 仅 transition 模式 */}
+        {pixverseMode === 'transition' && (
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <ImageIcon className="w-3 h-3" />
+              <span>尾帧图片 (必需)</span>
+              <Tooltip text="上传一张图片作为视频的最后一帧，视频将在首帧和尾帧之间过渡">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+
+            {pixverseLastFrameImage && pixverseLastFramePreviewUrl ? (
+              <div className="relative w-full h-24 rounded-lg overflow-hidden group border border-surface-border">
+                <img
+                  src={pixverseLastFramePreviewUrl}
+                  alt="尾帧图片"
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  onClick={removePixverseLastFrameImage}
+                  className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
+              </div>
+            ) : (
+              <div
+                onClick={() => pixverseLastFrameInputRef.current?.click()}
+                className="w-full h-16 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all border-surface-border hover:border-content-muted hover:bg-surface-hover"
+              >
+                <input
+                  type="file"
+                  ref={pixverseLastFrameInputRef}
+                  className="hidden"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => {
+                    if (e.target.files) handlePixverseLastFrameUpload(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+                <UploadCloud className="w-4 h-4 text-content-muted mb-1" />
+                <span className="text-xs text-content-tertiary">点击上传尾帧</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 负面提示词 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <span>负面提示词 (可选)</span>
+            <Tooltip text="描述您不希望在视频中出现的元素">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <textarea
+            defaultValue={pixverseNegativePrompt}
+            onBlur={(e) => setPixverseNegativePrompt(e.target.value)}
+            placeholder="blurry, low quality, watermark..."
+            className="input w-full h-16 resize-none text-sm"
+          />
+        </div>
+
+        {/* 随机种子 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Hash className="w-3 h-3" />
+            <span>随机种子</span>
+            <Tooltip text="使用相同的种子和参数可以生成相似的结果">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <input
+            type="number"
+            defaultValue={pixverseSeed}
+            onBlur={(e) => setPixverseSeed(e.target.value)}
+            placeholder="留空则随机"
+            min="-1"
+            className="input w-full text-xs"
+          />
+        </div>
+
+        {/* 首帧图片提示 */}
+        {!videoFirstFrame && (
+          <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+            <p className="text-xs text-orange-400">
+              请在上方上传首帧图片
+            </p>
+          </div>
+        )}
+
+        {/* 首尾帧模式尾帧提示 */}
+        {pixverseMode === 'transition' && !pixverseLastFrameImage && videoFirstFrame && (
+          <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+            <p className="text-xs text-orange-400">
+              请上传尾帧图片
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // LTX Video 2.0 Pro 专属设置面板
+  const renderLtxSettings = () => {
+    if (mode !== AppMode.VideoGeneration || videoModel !== 'ltx') return null;
+
+    // 分辨率选项
+    const resolutionOptions: { value: LtxResolution; label: string }[] = [
+      { value: '1080p', label: '1080p' },
+      { value: '1440p', label: '1440p (2K)' },
+      { value: '2160p', label: '2160p (4K)' },
+    ];
+
+    return (
+      <div className="space-y-4 pt-4 border-t border-surface-border">
+        <div className="text-xs font-semibold uppercase tracking-wider text-gradient-accent">LTX Video 2.0 Pro 设置</div>
+
+        {/* 模式提示 */}
+        <div className="p-3 bg-accent/10 border border-accent/30 rounded-lg">
+          <p className="text-xs text-accent">
+            {videoFirstFrame ? '图生视频模式 (I2V)：使用上传的图片作为首帧' : '文生视频模式 (T2V)：纯文字生成视频'}
+          </p>
+        </div>
+
+        {/* 分辨率选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Monitor className="w-3 h-3" />
+            <span>分辨率</span>
+            <Tooltip text="支持最高 4K (2160p) 分辨率">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {resolutionOptions.map(option => (
+              <button
+                key={option.value}
+                onClick={() => setLtxResolution(option.value)}
+                className={`px-2 py-2 rounded-lg border text-sm transition-all ${
+                  ltxResolution === option.value
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 时长选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Clock className="w-3 h-3" />
+            <span>视频时长</span>
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {([6, 8, 10] as LtxDuration[]).map(d => (
+              <button
+                key={d}
+                onClick={() => setLtxDuration(d)}
+                className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                  ltxDuration === d
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+                }`}
+              >
+                {d} 秒
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 帧率选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Film className="w-3 h-3" />
+            <span>帧率</span>
+            <Tooltip text="50 FPS 可获得更流畅的视频效果">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setLtxFps(25)}
+              className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                ltxFps === 25
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              25 FPS
+            </button>
+            <button
+              onClick={() => setLtxFps(50)}
+              className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                ltxFps === 50
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              50 FPS
+            </button>
+          </div>
+        </div>
+
+        {/* 音频生成开关 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Volume2 className="w-3 h-3" />
+            <span>音频生成</span>
+            <Tooltip text="开启后会根据视频内容生成同步音频">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <button
+            onClick={() => setLtxGenerateAudio(!ltxGenerateAudio)}
+            className={`w-full px-3 py-2 rounded-lg border text-sm flex items-center justify-between transition-all ${
+              ltxGenerateAudio
+                ? 'border-green-500/50 bg-green-500/10 text-green-400'
+                : 'border-orange-500/50 bg-orange-500/10 text-orange-400'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              {ltxGenerateAudio ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+              <span>{ltxGenerateAudio ? '已开启' : '已关闭'}</span>
+            </div>
+          </button>
+        </div>
+
+        {/* 随机种子 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Hash className="w-3 h-3" />
+            <span>随机种子</span>
+            <Tooltip text="使用相同的种子和参数可以生成相似的结果">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <input
+            type="number"
+            defaultValue={ltxSeed}
+            onBlur={(e) => setLtxSeed(e.target.value)}
+            placeholder="留空则随机"
+            min="0"
+            max="4294967295"
+            className="input w-full text-xs"
+          />
+        </div>
+      </div>
+    );
+  };
+
+  // RunWay Gen 4.5 专属设置面板
+  const renderRunwaySettings = () => {
+    if (mode !== AppMode.VideoGeneration || videoModel !== 'runway') return null;
+
+    // 宽高比选项
+    const ratioOptions: { value: RunwayRatio; label: string; desc: string }[] = [
+      { value: '1280:720', label: '16:9', desc: '横屏' },
+      { value: '720:1280', label: '9:16', desc: '竖屏' },
+      { value: '960:960', label: '1:1', desc: '方形' },
+      { value: '1104:832', label: '4:3', desc: '经典横' },
+      { value: '832:1104', label: '3:4', desc: '经典竖' },
+    ];
+
+    return (
+      <div className="space-y-4 pt-4 border-t border-surface-border">
+        <div className="text-xs font-semibold uppercase tracking-wider text-gradient-accent">RunWay 设置</div>
+
+        {/* 模型版本选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Film className="w-3 h-3" />
+            <span>模型版本</span>
+          </label>
+          <div className="space-y-2">
+            <button
+              onClick={() => setRunwayModelVersion('runway-4.5')}
+              className={`w-full px-3 py-2 rounded-lg border text-sm text-left transition-all ${
+                runwayModelVersion === 'runway-4.5'
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              <div className="flex justify-between items-center">
+                <span>RunWay Gen 4.5</span>
+                <span className="text-xs text-content-tertiary">T2V + I2V</span>
+              </div>
+              <p className="text-xs text-content-tertiary mt-1">最新模型，高质量视频生成</p>
+            </button>
+            <button
+              disabled
+              className="w-full px-3 py-2 rounded-lg border text-sm text-left border-surface-border text-content-muted cursor-not-allowed opacity-50"
+            >
+              <div className="flex justify-between items-center">
+                <span>RunWay 4 Turbo</span>
+                <span className="text-xs text-content-tertiary">(已弃用)</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* 模式提示 */}
+        <div className="p-3 bg-accent/10 border border-accent/30 rounded-lg">
+          <p className="text-xs text-accent">
+            {videoFirstFrame ? '图生视频模式 (I2V)：使用上传的图片作为首帧' : '文生视频模式 (T2V)：纯文字生成视频'}
+          </p>
+        </div>
+
+        {/* 宽高比选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Monitor className="w-3 h-3" />
+            <span>画面比例</span>
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {ratioOptions.slice(0, 3).map(option => (
+              <button
+                key={option.value}
+                onClick={() => setRunwayRatio(option.value)}
+                className={`px-2 py-2 rounded-lg border text-sm transition-all ${
+                  runwayRatio === option.value
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+                }`}
+              >
+                <div className="text-xs">{option.label}</div>
+                <div className="text-xs text-content-tertiary">{option.desc}</div>
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {ratioOptions.slice(3).map(option => (
+              <button
+                key={option.value}
+                onClick={() => setRunwayRatio(option.value)}
+                className={`px-2 py-2 rounded-lg border text-sm transition-all ${
+                  runwayRatio === option.value
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+                }`}
+              >
+                <div className="text-xs">{option.label}</div>
+                <div className="text-xs text-content-tertiary">{option.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 时长选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Clock className="w-3 h-3" />
+            <span>视频时长</span>
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {([5, 8, 10] as RunwayDuration[]).map(d => (
+              <button
+                key={d}
+                onClick={() => setRunwayDuration(d)}
+                className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                  runwayDuration === d
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+                }`}
+              >
+                {d} 秒
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 随机种子 - 仅 I2V 模式 */}
+        {videoFirstFrame && (
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <Hash className="w-3 h-3" />
+              <span>随机种子</span>
+              <Tooltip text="使用相同的种子和参数可以生成相似的结果（仅图生视频模式支持）">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+            <input
+              type="number"
+              defaultValue={runwaySeed}
+              onBlur={(e) => setRunwaySeed(e.target.value)}
+              placeholder="留空则随机"
+              min="0"
+              max="4294967295"
+              className="input w-full text-xs"
+            />
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Kling 3 专属设置面板
+  const renderKlingSettings = () => {
+    if (mode !== AppMode.VideoGeneration || videoModel !== 'kling') return null;
+
+    // 宽高比选项
+    const aspectRatioOptions: { value: KlingAspectRatio; label: string }[] = [
+      { value: '16:9', label: '16:9 横屏' },
+      { value: '9:16', label: '9:16 竖屏' },
+      { value: '1:1', label: '1:1 方形' },
+    ];
+
+    // Omni 模型支持 auto
+    if (klingModelVersion === 'kling-3-omni-pro' || klingModelVersion === 'kling-3-omni-pro-v2v') {
+      aspectRatioOptions.unshift({ value: 'auto', label: '自动' });
+    }
+
+    const isV2V = klingModelVersion === 'kling-3-omni-pro-v2v';
+
+    return (
+      <div className="space-y-4 pt-4 border-t border-surface-border">
+        <div className="text-xs font-semibold uppercase tracking-wider text-gradient-accent">Kling 3 设置</div>
+
+        {/* 模型版本选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Film className="w-3 h-3" />
+            <span>模型版本</span>
+          </label>
+          <div className="space-y-2">
+            <button
+              onClick={() => setKlingModelVersion('kling-3-pro')}
+              className={`w-full px-3 py-2 rounded-lg border text-sm text-left transition-all ${
+                klingModelVersion === 'kling-3-pro'
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              <div className="flex justify-between items-center">
+                <span>Kling 3 Pro</span>
+                <span className="text-xs text-content-tertiary">T2V + I2V</span>
+              </div>
+              <p className="text-xs text-content-tertiary mt-1">高质量输出，支持首尾帧控制</p>
+            </button>
+            <button
+              onClick={() => setKlingModelVersion('kling-3-omni-pro')}
+              className={`w-full px-3 py-2 rounded-lg border text-sm text-left transition-all ${
+                klingModelVersion === 'kling-3-omni-pro'
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              <div className="flex justify-between items-center">
+                <span>Kling 3 Omni Pro</span>
+                <span className="text-xs text-content-tertiary">T2V + I2V</span>
+              </div>
+              <p className="text-xs text-content-tertiary mt-1">多模态能力，支持自动宽高比</p>
+            </button>
+            <button
+              onClick={() => setKlingModelVersion('kling-3-omni-pro-v2v')}
+              className={`w-full px-3 py-2 rounded-lg border text-sm text-left transition-all ${
+                klingModelVersion === 'kling-3-omni-pro-v2v'
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              <div className="flex justify-between items-center">
+                <span>Kling 3 Omni Pro 视频参考</span>
+                <span className="text-xs text-content-tertiary">V2V</span>
+              </div>
+              <p className="text-xs text-content-tertiary mt-1">使用参考视频引导生成</p>
+            </button>
+          </div>
+        </div>
+
+        {/* V2V 模式 - 参考视频 URL */}
+        {isV2V && (
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <Link className="w-3 h-3" />
+              <span>参考视频 URL (必需)</span>
+              <Tooltip text="提供一个 3-10 秒的参考视频 URL，视频将参考其运动和风格。在提示词中使用 @Video1 引用">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+            <input
+              type="url"
+              defaultValue={klingReferenceVideoUrl}
+              onBlur={(e) => setKlingReferenceVideoUrl(e.target.value)}
+              placeholder="https://example.com/video.mp4"
+              className="input w-full text-xs"
+            />
+            <p className="text-xs text-content-tertiary">
+              要求：3-10秒，720-2160px，最大200MB，24-60FPS，.mp4/.mov格式
+            </p>
+          </div>
+        )}
+
+        {/* 模式提示 */}
+        {!isV2V && (
+          <div className="p-3 bg-accent/10 border border-accent/30 rounded-lg">
+            <p className="text-xs text-accent">
+              {videoFirstFrame ? '图生视频模式 (I2V)：使用上传的图片作为首帧' : '文生视频模式 (T2V)：纯文字生成视频'}
+            </p>
+          </div>
+        )}
+
+        {/* 多镜头模式开关 - 仅 Pro 和 Omni Pro 支持，V2V 不支持 */}
+        {!isV2V && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+                <Film className="w-3 h-3" />
+                <span>多镜头模式</span>
+                <Tooltip text={klingModelVersion === 'kling-3-pro'
+                  ? "为每个镜头设置独立的提示词和时长，最多6个镜头，总时长不超过15秒"
+                  : "为每个镜头设置独立的提示词，最多6个镜头"}>
+                  <HelpCircle className="w-3 h-3 cursor-help" />
+                </Tooltip>
+              </label>
+              <button
+                onClick={() => setKlingMultiPromptEnabled(!klingMultiPromptEnabled)}
+                className={`px-3 py-1 rounded-lg border text-xs transition-all ${
+                  klingMultiPromptEnabled
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-surface-border text-content-muted hover:bg-surface-hover'
+                }`}
+              >
+                {klingMultiPromptEnabled ? '已开启' : '已关闭'}
+              </button>
+            </div>
+
+            {/* 多镜头编辑器 */}
+            {klingMultiPromptEnabled && (
+              <div className="space-y-2 p-3 bg-surface-hover rounded-lg border border-surface-border">
+                {klingMultiPrompts.map((item, index) => (
+                  <div key={index} className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-content-muted">镜头 {index + 1}</span>
+                      {klingMultiPrompts.length > 1 && (
+                        <button
+                          onClick={() => {
+                            const newPrompts = klingMultiPrompts.filter((_, i) => i !== index);
+                            setKlingMultiPrompts(newPrompts);
+                          }}
+                          className="p-1 text-red-400 hover:bg-red-500/20 rounded"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      value={item.prompt}
+                      onChange={(e) => {
+                        const newPrompts = [...klingMultiPrompts];
+                        newPrompts[index] = { ...newPrompts[index], prompt: e.target.value };
+                        setKlingMultiPrompts(newPrompts);
+                      }}
+                      placeholder={`镜头 ${index + 1} 的提示词...`}
+                      className="input w-full h-16 resize-none text-xs"
+                    />
+                    {/* Pro 版本支持每个镜头独立时长 */}
+                    {klingModelVersion === 'kling-3-pro' && (
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs text-content-tertiary">时长:</span>
+                        <select
+                          value={item.duration}
+                          onChange={(e) => {
+                            const newPrompts = [...klingMultiPrompts];
+                            newPrompts[index] = { ...newPrompts[index], duration: e.target.value };
+                            setKlingMultiPrompts(newPrompts);
+                          }}
+                          className="input text-xs py-1 px-2"
+                        >
+                          {[3,4,5,6,7,8,9,10,11,12,13,14,15].map(d => (
+                            <option key={d} value={String(d)}>{d}秒</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* 添加镜头按钮 */}
+                {klingMultiPrompts.length < 6 && (
+                  <button
+                    onClick={() => {
+                      setKlingMultiPrompts([...klingMultiPrompts, { prompt: '', duration: '5' }]);
+                    }}
+                    className="w-full py-2 border-2 border-dashed border-surface-border rounded-lg text-xs text-content-muted hover:border-accent hover:text-accent transition-all flex items-center justify-center space-x-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>添加镜头 ({klingMultiPrompts.length}/6)</span>
+                  </button>
+                )}
+
+                {/* Pro 版本显示总时长 */}
+                {klingModelVersion === 'kling-3-pro' && (
+                  <div className="text-xs text-content-tertiary text-right">
+                    总时长: {klingMultiPrompts.reduce((sum, p) => sum + parseInt(p.duration), 0)} 秒
+                    {klingMultiPrompts.reduce((sum, p) => sum + parseInt(p.duration), 0) > 15 && (
+                      <span className="text-red-400 ml-1">(超过15秒限制)</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 时长选择 - 非多镜头模式时显示 */}
+        {!klingMultiPromptEnabled && (
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <Clock className="w-3 h-3" />
+              <span>视频时长</span>
+              <Tooltip text="支持 3-15 秒视频生成">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="range"
+                min="3"
+                max="15"
+                value={klingDuration}
+                onChange={(e) => setKlingDuration(parseInt(e.target.value) as KlingDuration)}
+                className="flex-1 h-2 bg-surface-border rounded-lg appearance-none cursor-pointer accent-accent"
+              />
+              <span className="text-sm text-content w-12 text-center">{klingDuration} 秒</span>
+            </div>
+          </div>
+        )}
+
+        {/* 宽高比选择 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Monitor className="w-3 h-3" />
+            <span>画面比例</span>
+            {(klingModelVersion === 'kling-3-omni-pro' || klingModelVersion === 'kling-3-omni-pro-v2v') && (
+              <Tooltip text="Omni 模型支持自动匹配输入图片的宽高比">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            )}
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            {aspectRatioOptions.map(option => (
+              <button
+                key={option.value}
+                onClick={() => setKlingAspectRatio(option.value)}
+                className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                  klingAspectRatio === option.value
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 音频生成开关 - 仅 Pro 和 Omni Pro 支持，V2V 不支持 */}
+        {!isV2V && (
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <Volume2 className="w-3 h-3" />
+              <span>音频生成</span>
+              <Tooltip text="开启后会根据视频内容生成同步音频">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+            <button
+              onClick={() => setKlingGenerateAudio(!klingGenerateAudio)}
+              className={`w-full px-3 py-2 rounded-lg border text-sm flex items-center justify-between transition-all ${
+                klingGenerateAudio
+                  ? 'border-green-500/50 bg-green-500/10 text-green-400'
+                  : 'border-orange-500/50 bg-orange-500/10 text-orange-400'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                {klingGenerateAudio ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                <span>{klingGenerateAudio ? '已开启' : '已关闭'}</span>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* 镜头类型 - 仅 Kling 3 Pro */}
+        {klingModelVersion === 'kling-3-pro' && (
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <Video className="w-3 h-3" />
+              <span>镜头类型</span>
+              <Tooltip text="自定义：手动控制每个镜头；智能：AI 自动生成镜头">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setKlingShotType('customize')}
+                className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                  klingShotType === 'customize'
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+                }`}
+              >
+                自定义
+              </button>
+              <button
+                onClick={() => setKlingShotType('intelligent')}
+                className={`px-3 py-2 rounded-lg border text-sm transition-all ${
+                  klingShotType === 'intelligent'
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+                }`}
+              >
+                智能
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* CFG Scale - 仅 Kling 3 Pro 和 V2V 支持 */}
+        {(klingModelVersion === 'kling-3-pro' || isV2V) && (
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <Sparkles className="w-3 h-3" />
+              <span>提示词强度</span>
+              <Tooltip text="0: 最大创意自由；0.5: 平衡；2: 严格遵循提示词">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="range"
+                min="0"
+                max="2"
+                step="0.1"
+                value={klingCfgScale}
+                onChange={(e) => setKlingCfgScale(parseFloat(e.target.value))}
+                className="flex-1 h-2 bg-surface-border rounded-lg appearance-none cursor-pointer accent-accent"
+              />
+              <span className="text-sm text-content w-10 text-center">{klingCfgScale.toFixed(1)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* 负面提示词 - 仅 Kling 3 Pro 和 V2V 支持 */}
+        {(klingModelVersion === 'kling-3-pro' || isV2V) && (
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <span>负面提示词 (可选)</span>
+              <Tooltip text="描述您不希望在视频中出现的元素">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+            <textarea
+              defaultValue={klingNegativePrompt}
+              onBlur={(e) => setKlingNegativePrompt(e.target.value)}
+              placeholder="blur, distort, low quality..."
+              className="input w-full h-16 resize-none text-sm"
+            />
+          </div>
+        )}
+
+        {/* 尾帧图片上传 - Pro 和 Omni Pro 支持，V2V 不支持 */}
+        {!isV2V && (
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <ImageIcon className="w-3 h-3" />
+              <span>尾帧图片 (可选)</span>
+              <Tooltip text="上传一张图片作为视频的最后一帧">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+
+            {klingEndImage && klingEndImagePreviewUrl ? (
+              <div className="relative w-full h-24 rounded-lg overflow-hidden group border border-surface-border">
+                <img
+                  src={klingEndImagePreviewUrl}
+                  alt="尾帧图片"
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  onClick={removeKlingEndImage}
+                  className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
+              </div>
+            ) : (
+              <div
+                onClick={() => klingEndImageInputRef.current?.click()}
+                className="w-full h-16 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all border-surface-border hover:border-content-muted hover:bg-surface-hover"
+              >
+                <input
+                  type="file"
+                  ref={klingEndImageInputRef}
+                  className="hidden"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => {
+                    if (e.target.files) handleKlingEndImageUpload(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+                <UploadCloud className="w-4 h-4 text-content-muted mb-1" />
+                <span className="text-xs text-content-tertiary">点击上传尾帧</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Elements - 角色/物体一致性参考图片，仅 Pro 和 Omni Pro 支持 */}
+        {!isV2V && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+                <Users className="w-3 h-3" />
+                <span>角色一致性</span>
+                <Tooltip text="添加参考图片保持角色/物体在视频中的一致性。在提示词中使用 @Element1, @Element2 引用">
+                  <HelpCircle className="w-3 h-3 cursor-help" />
+                </Tooltip>
+              </label>
+              {klingElements.length === 0 && (
+                <button
+                  onClick={() => setKlingElements([{ frontal_image_url: '', reference_image_urls: [] }])}
+                  className="px-2 py-1 rounded border border-surface-border text-xs text-content-muted hover:bg-surface-hover transition-all flex items-center space-x-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>添加</span>
+                </button>
+              )}
+            </div>
+
+            {klingElements.length > 0 && (
+              <div className="space-y-3 p-3 bg-surface-hover rounded-lg border border-surface-border">
+                {klingElements.map((element, index) => (
+                  <div key={index} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-content-muted">@Element{index + 1}</span>
+                      <button
+                        onClick={() => {
+                          const newElements = klingElements.filter((_, i) => i !== index);
+                          setKlingElements(newElements);
+                        }}
+                        className="p-1 text-red-400 hover:bg-red-500/20 rounded"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-xs text-content-tertiary">正面参考图 URL</span>
+                      <input
+                        type="url"
+                        value={element.frontal_image_url || ''}
+                        onChange={(e) => {
+                          const newElements = [...klingElements];
+                          newElements[index] = { ...newElements[index], frontal_image_url: e.target.value };
+                          setKlingElements(newElements);
+                        }}
+                        placeholder="https://example.com/front.jpg"
+                        className="input w-full text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-xs text-content-tertiary">其他角度参考图 URL (逗号分隔)</span>
+                      <input
+                        type="text"
+                        value={element.reference_image_urls?.join(', ') || ''}
+                        onChange={(e) => {
+                          const newElements = [...klingElements];
+                          const urls = e.target.value.split(',').map(s => s.trim()).filter(s => s);
+                          newElements[index] = { ...newElements[index], reference_image_urls: urls };
+                          setKlingElements(newElements);
+                        }}
+                        placeholder="url1, url2, url3..."
+                        className="input w-full text-xs"
+                      />
+                    </div>
+                  </div>
+                ))}
+
+                {/* 添加更多 Element */}
+                {klingElements.length < 4 && (
+                  <button
+                    onClick={() => {
+                      setKlingElements([...klingElements, { frontal_image_url: '', reference_image_urls: [] }]);
+                    }}
+                    className="w-full py-2 border-2 border-dashed border-surface-border rounded-lg text-xs text-content-muted hover:border-accent hover:text-accent transition-all flex items-center justify-center space-x-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>添加角色 ({klingElements.length}/4)</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 随机种子 */}
+        <div className="space-y-2">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Hash className="w-3 h-3" />
+            <span>随机种子</span>
+            <Tooltip text="使用相同的种子和参数可以生成相似的结果">
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <input
+            type="number"
+            defaultValue={klingSeed}
+            onBlur={(e) => setKlingSeed(e.target.value)}
+            placeholder="留空则随机"
+            min="0"
+            max="4294967295"
+            className="input w-full text-xs"
+          />
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="w-80 h-full bg-surface-raised border-l border-surface-border flex flex-col shrink-0 overflow-hidden">
+      <div className="flex-1 overflow-y-auto custom-scrollbar overflow-x-hidden">
+        <div className="p-5 space-y-6 pb-6">
+
+        {renderModelSelector()}
+
+        {/* Prompt Input - 精准放大不需要提示词 */}
+        {!(mode === AppMode.Upscale && upscaleModel === 'precision') && (
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-content-tertiary uppercase tracking-wider flex items-center space-x-1">
+            <span>提示词</span>
+            <Tooltip text={
+              mode === AppMode.ImageCreation ? "描述您想生成的图片内容，Seedream 4.5 擅长渲染文字和排版"
+              : mode === AppMode.VideoGeneration ? "描述您想生成的视频内容"
+              : "可选：输入细节描述以指导放大"
+            }>
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <div className="relative">
+            <textarea
+              ref={promptTextareaRef}
+              key={mode} // 切换模式时重新渲染
+              defaultValue={currentPrompt}
+              onBlur={(e) => setCurrentPrompt(e.target.value)}
+              placeholder={mode === AppMode.Upscale ? "可选：输入细节描述以指导放大..." : "描述您想生成的画面..."}
+              className="input w-full h-28 resize-none text-sm pb-8"
+            />
+            {mode !== AppMode.Upscale && (
+              <div className="absolute bottom-2 right-2 flex items-center space-x-1">
+                {preOptimizePrompt !== null && (
+                  <button
+                    onClick={handleUndoOptimize}
+                    className="flex items-center space-x-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-all bg-surface-hover text-content-tertiary hover:text-content"
+                  >
+                    <Undo2 className="w-3 h-3" />
+                    <span>撤回</span>
+                  </button>
+                )}
+                <button
+                  onClick={handleOptimizePrompt}
+                  disabled={isOptimizingPrompt}
+                  className="flex items-center space-x-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-all bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Sparkles className={`w-3 h-3 ${isOptimizingPrompt ? 'animate-spin' : ''}`} />
+                  <span>{isOptimizingPrompt ? '优化中...' : 'AI优化'}</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+        )}
+
+        {/* 图片创作 - 参考图片上传 */}
+        {mode === AppMode.ImageCreation && (
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-content-tertiary uppercase tracking-wider flex items-center space-x-1">
+              <span>参考图片 (可选，最多5张)</span>
+              <Tooltip text="支持 JPG、PNG、WebP 格式，单张最大 10MB。图生图模式下会保留参考图的主体、光照和色调">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+
+            <div
+              onClick={() => imageReferenceImages.length < MAX_IMAGES && fileInputRef.current?.click()}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              className={`w-full h-20 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all ${
+                imageReferenceImages.length >= MAX_IMAGES
+                  ? 'border-surface-border bg-surface-hover cursor-not-allowed opacity-50'
+                  : 'border-surface-border hover:border-content-muted hover:bg-surface-hover'
+              }`}
+            >
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                onChange={(e) => {
+                  if (e.target.files) validateAndAddReferenceImages(e.target.files);
+                  e.target.value = '';
+                }}
+              />
+              <UploadCloud className="w-5 h-5 text-content-muted mb-1" />
+              <span className="text-xs text-content-tertiary">
+                {imageReferenceImages.length >= MAX_IMAGES ? '已达上限' : '点击或拖拽上传'}
+              </span>
+            </div>
+
+            {imageReferenceImages.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {imageReferenceImages.map((file, index) => (
+                  <div key={index} className="relative w-14 h-14 rounded-lg overflow-hidden group border border-surface-border">
+                    <img
+                      src={referenceImagePreviewUrls[index]}
+                      alt={`参考图 ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      onClick={() => removeReferenceImage(index)}
+                      className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-4 h-4 text-white" />
+                    </button>
+                  </div>
+                ))}
+                {imageReferenceImages.length < MAX_IMAGES && (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-14 h-14 rounded-lg border-2 border-dashed border-surface-border flex items-center justify-center hover:border-content-muted hover:bg-surface-hover transition-all"
+                  >
+                    <Plus className="w-4 h-4 text-content-muted" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 视频生成 - 首帧图片上传 */}
+        {mode === AppMode.VideoGeneration && (
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-content-tertiary uppercase tracking-wider flex items-center space-x-1">
+              <span>首帧图片 {videoModel === 'pixverse' ? '(必需)' : '(可选)'}</span>
+              <Tooltip text="上传一张图片作为视频的第一帧，支持 JPG、PNG、WebP 格式">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+
+            {videoFirstFrame && firstFramePreviewUrl ? (
+              <div className="relative w-full h-24 rounded-lg overflow-hidden group border border-surface-border">
+                <img
+                  src={firstFramePreviewUrl}
+                  alt="首帧图片"
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  onClick={removeFirstFrame}
+                  className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
+              </div>
+            ) : (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                className="w-full h-20 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all border-surface-border hover:border-content-muted hover:bg-surface-hover"
+              >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => {
+                    if (e.target.files) handleFirstFrameUpload(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+                <UploadCloud className="w-5 h-5 text-content-muted mb-1" />
+                <span className="text-xs text-content-tertiary">点击或拖拽上传</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 放大 - 图片上传 */}
+        {mode === AppMode.Upscale && (
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-content-tertiary uppercase tracking-wider flex items-center space-x-1">
+              <span>上传图片 (必须)</span>
+              <Tooltip text="支持 JPG、PNG、WebP 格式，单张最大 50MB">
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+
+            {upscaleImage && upscaleImagePreviewUrl ? (
+              <div className="relative w-full h-24 rounded-lg overflow-hidden group border border-surface-border">
+                <img
+                  src={upscaleImagePreviewUrl}
+                  alt="待放大图片"
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  onClick={removeUpscaleImage}
+                  className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
+              </div>
+            ) : (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                className="w-full h-20 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all border-surface-border hover:border-content-muted hover:bg-surface-hover"
+              >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => {
+                    if (e.target.files) handleUpscaleImageUpload(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+                <UploadCloud className="w-5 h-5 text-content-muted mb-1" />
+                <span className="text-xs text-content-tertiary">点击或拖拽上传</span>
+              </div>
+            )}
+
+            {/* 图片分辨率信息 & 最终尺寸预估 */}
+            {upscaleImage && upscaleImageDimensions && (() => {
+              const { width, height } = upscaleImageDimensions;
+              const factor = upscaleModel === 'creative'
+                ? parseInt(magnificScaleFactor.replace('x', ''))
+                : precisionScaleFactor;
+              const finalW = width * factor;
+              const finalH = height * factor;
+              const totalPixels = finalW * finalH;
+              const overLimit = totalPixels > 100_000_000;
+              const maxDim = Math.max(finalW, finalH);
+              const cost = maxDim <= 2048 ? 10 : maxDim <= 4096 ? 20 : 120;
+
+              return (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-content-tertiary">原始分辨率</span>
+                    <span className="text-content font-medium">{width} x {height}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-content-tertiary">放大后尺寸</span>
+                    <span className={`font-medium ${overLimit ? 'text-error' : 'text-accent'}`}>{finalW} x {finalH}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-content-tertiary">预估消耗</span>
+                    <span className="text-accent font-medium">{cost} 积分</span>
+                  </div>
+                  {overLimit && (
+                    <div className="px-3 py-2 rounded-lg bg-error/10 border border-error/30 text-xs text-error">
+                      最终图像 {(totalPixels / 1_000_000).toFixed(0)}M 像素，超过 1 亿像素限制，请降低放大倍数
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* 提示信息 */}
+            <div className="px-3 py-2 rounded-lg bg-surface-hover text-[11px] text-content-tertiary space-y-1">
+              <div>
+                <UploadCloud className="w-3 h-3 inline mr-1 -mt-0.5" />
+                图片需先上传至云端再进行放大，文件较大时请求耗时会稍长
+              </div>
+              <div>
+                <Shield className="w-3 h-3 inline mr-1 -mt-0.5" />
+                最终生成图片不得超过 1 亿像素 (100MP)
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 图片创作高级设置 */}
+        {mode === AppMode.ImageCreation && (
+          <div className="space-y-5">
+            {/* Aspect Ratio Dropdown */}
+            <div className="space-y-2">
+              <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+                <span>画面比例</span>
+                <Tooltip text="选择生成图片的宽高比例，Seedream 4.5 支持最高 4MP 分辨率">
+                  <HelpCircle className="w-3 h-3 cursor-help" />
+                </Tooltip>
+              </label>
+              <div className="relative">
+                <button
+                  onClick={toggleRatioDropdown}
+                  className="input w-full text-sm flex items-center justify-between"
+                >
+                  <span>
+                    {ASPECT_RATIO_OPTIONS.find(o => o.ratio === imageAspectRatio)?.label} - {ASPECT_RATIO_OPTIONS.find(o => o.ratio === imageAspectRatio)?.name}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${ratioDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {ratioDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-surface-overlay border border-surface-border rounded-lg shadow-lg z-50 overflow-hidden">
+                    {ASPECT_RATIO_OPTIONS.map(({ ratio, label, name }) => (
+                      <button
+                        key={ratio}
+                        onClick={() => handleRatioSelect(ratio)}
+                        className={`w-full px-3 py-2 text-left text-sm hover:bg-surface-hover transition-colors flex items-center justify-between ${
+                          imageAspectRatio === ratio ? 'bg-accent-subtle text-accent' : 'text-content'
+                        }`}
+                      >
+                        <span>{label} - {name}</span>
+                        {imageAspectRatio === ratio && <span className="text-accent">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Seed */}
+            <div className="space-y-2">
+              <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+                <Hash className="w-3 h-3" />
+                <span>随机种子</span>
+                <Tooltip text="使用相同的种子和参数可以生成相似的结果，适合迭代优化设计。范围: 0-4294967295">
+                  <HelpCircle className="w-3 h-3 cursor-help" />
+                </Tooltip>
+              </label>
+              <input
+                type="number"
+                defaultValue={imageSeed}
+                onBlur={(e) => setImageSeed(e.target.value)}
+                placeholder="留空则随机"
+                min="0"
+                max="4294967295"
+                className="input w-full text-xs"
+              />
+            </div>
+
+            {/* Safety Checker Toggle */}
+            <div className="space-y-2">
+              <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+                <span>安全检查</span>
+                <Tooltip text="开启后会过滤不适当的内容。关闭可能生成更多样化的结果，但请遵守使用规范">
+                  <HelpCircle className="w-3 h-3 cursor-help" />
+                </Tooltip>
+              </label>
+              <button
+                onClick={() => setImageSafetyChecker(!imageSafetyChecker)}
+                className={`w-full px-3 py-2 rounded-lg border text-sm flex items-center justify-between transition-all ${
+                  imageSafetyChecker
+                    ? 'border-green-500/50 bg-green-500/10 text-green-400'
+                    : 'border-orange-500/50 bg-orange-500/10 text-orange-400'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  {imageSafetyChecker ? <Shield className="w-4 h-4" /> : <ShieldOff className="w-4 h-4" />}
+                  <span>{imageSafetyChecker ? '已开启' : '已关闭'}</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Minimax 专属设置 */}
+        {renderMinimaxSettings()}
+
+        {/* Wan 专属设置 */}
+        {renderWanSettings()}
+
+        {/* Seedance 专属设置 */}
+        {renderSeedanceSettings()}
+
+        {/* PixVerse 专属设置 */}
+        {renderPixVerseSettings()}
+
+        {/* LTX 专属设置 */}
+        {renderLtxSettings()}
+
+        {/* RunWay 专属设置 */}
+        {renderRunwaySettings()}
+
+        {/* Kling 专属设置 */}
+        {renderKlingSettings()}
+
+        {/* Magnific 放大设置 */}
+        {renderMagnificSettings()}
+        </div>
+      </div>
+
+      {/* Generate Button */}
+      <div className="shrink-0 p-5 bg-surface-raised border-t border-surface-border">
+        {/* Credits Cost Display */}
+        {estimatedCost > 0 && (
+          <div className="mb-3 px-3 py-2.5 rounded-lg bg-surface-overlay/50 border border-surface-border">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-content-tertiary flex items-center space-x-1">
+                <Zap className="w-3 h-3" />
+                <span>预估消耗</span>
+              </span>
+              <span className="text-sm font-semibold text-content">{estimatedCost} 积分</span>
+            </div>
+            {userCredits !== null && userCredits < estimatedCost && (
+              <div className="mt-1.5 text-xs text-red-400 font-medium">余额不足（当前 {userCredits} 积分）</div>
+            )}
+          </div>
+        )}
+        <button
+          onClick={handleGenerate}
+          disabled={isGenerateDisabled()}
+          className={`w-full py-3.5 rounded-xl font-semibold text-white flex items-center justify-center space-x-2 transition-all ${
+            isGenerateDisabled()
+              ? 'bg-surface-border cursor-not-allowed text-content-muted'
+              : 'btn-primary'
+          }`}
+        >
+          {isGenerating ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              <span>{mode === AppMode.Upscale ? '放大处理中...' : '生成中...'}</span>
+            </>
+          ) : (
+            <>
+              <Wand2 className="w-5 h-5" />
+              <span>{mode === AppMode.Upscale ? '开始放大' : '立即生成'}</span>
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+});
+
+ControlPanel.displayName = 'ControlPanel';
+
+export default ControlPanel;

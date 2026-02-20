@@ -1,0 +1,48 @@
+{
+  "tabs": {
+    "all": "全部",
+    "image": "图片",
+    "video": "视频",
+    "upscale": "放大"
+  },
+  "pending": {
+    "title": "进行中",
+    "generating": "生成中...",
+    "maybeStuck": "可能卡住了",
+    "refresh": "刷新",
+    "cancel": "取消"
+  },
+  "history": {
+    "items": "{{count}} 项",
+    "clear": "清空",
+    "clearConfirm": "确定要清空所有历史记录吗？",
+    "retention": "历史保存：",
+    "retentionUpgrade": "升级套餐可延长保存时间",
+    "empty": "暂无记录",
+    "emptyDesc": "开始创作，您的作品将显示在这里"
+  },
+  "detail": {
+    "download": "下载",
+    "useParams": "使用此参数",
+    "downloadPreparing": "正在准备文件...",
+    "downloadSuccess": "文件已保存",
+    "downloadFailed": "下载失败",
+    "downloadingVideo": "浏览器正在下载视频...",
+    "openInNewTab": "已在新标签页打开，请右键保存",
+    "shareTitle": "Smile AI Studio 作品",
+    "shareText": "看看我用 Smile AI Studio 生成的作品！"
+  },
+  "modelLabels": {
+    "seedream": "Seedream",
+    "banana": "Banana Pro",
+    "remove-bg": "抠图",
+    "kling": "Kling",
+    "minimax": "Minimax",
+    "wan": "Wan",
+    "runway": "Runway",
+    "creative": "Magnific",
+    "faithful": "4K Fast",
+    "magnific-creative": "创意放大",
+    "magnific-precision": "精准放大"
+  }
+}

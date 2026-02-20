@@ -1,0 +1,112 @@
+{
+  "title": "选择您的创作之旅",
+  "desc": "所有套餐均包含全部模型权限，按需选择适合您的方案。",
+  "monthly": "月付",
+  "annual": "年付",
+  "annualSave": "更优惠",
+  "perMonth": "/月",
+  "perYear": "/年",
+  "equivalentMonthly": "相当于 ${{price}}/月",
+  "billedAnnually": "按年付 ${{price}}/年",
+  "free": "免费",
+  "freeForever": "永久免费使用",
+  "currentPlan": "当前套餐",
+  "currentButton": "当前方案",
+  "freeButton": "免费使用",
+  "included": "已包含",
+  "subscribe": "立即订阅",
+  "processing": "处理中...",
+  "loginRequired": "请先登录",
+  "loginRequiredDesc": "您需要登录后才能订阅套餐。",
+  "createOrderFailed": "创建订单失败",
+  "paymentOpened": "支付页面已打开",
+  "paymentOpenedDesc": "请在新窗口完成支付，支付成功后将自动更新。",
+  "expires": "到期: {{date}}",
+  "credits": "积分",
+  "concurrency": "并发",
+  "historyRetention": "历史",
+  "payMethod": {
+    "title": "选择支付方式",
+    "desc": "{{tier}} · {{cycle}}",
+    "alipay": "支付宝",
+    "paypal": "PayPal"
+  },
+  "tiers": {
+    "free": { "name": "免费版" },
+    "starter": { "name": "入门版" },
+    "advanced": { "name": "进阶版" },
+    "flagship": { "name": "旗舰版" },
+    "studio": { "name": "工作室版" }
+  },
+  "tierFeatures": {
+    "free": ["注册送188积分", "每日登录+10积分(上限200)", "全部模型权限"],
+    "starter": ["每月2,000积分", "3图片+1视频并发", "全部模型权限"],
+    "advanced": ["每月6,000积分", "5图片+5视频并发", "全部模型权限"],
+    "flagship": ["每月15,000积分", "无限并发", "历史保存7天", "优先体验新模型"],
+    "studio": ["每月60,000积分", "无限并发", "历史保存30天", "1v1专属客服", "API权限", "Beta体验", "VIP快速通道"]
+  },
+  "tierConcurrency": {
+    "free": "1个任务",
+    "starter": "3图片 + 1视频",
+    "advanced": "5图片 + 5视频",
+    "flagship": "无限制",
+    "studio": "无限制"
+  },
+  "tierHistory": {
+    "free": "1小时",
+    "starter": "1小时",
+    "advanced": "1小时",
+    "flagship": "7天",
+    "studio": "30天"
+  },
+  "faq": {
+    "title": "常见问题",
+    "q1": "积分有效期是多久？",
+    "a1": "购买任意套餐后获得的积分有效期为 2 年。即使订阅到期，剩余积分仍可在 2 年内继续使用。",
+    "q2": "积分如何使用？",
+    "a2": "每次生成消耗不同积分。图片约 2-4 积分，视频 14-495 积分（取决于模型和参数），高清放大 10-120 积分，一键抠图 2 积分。",
+    "q3": "年付有什么优惠？",
+    "a3": "年付享受10个月价格买12个月服务（省2个月），积分一次性发放全年额度。",
+    "q4": "可以取消订阅吗？",
+    "a4": "订阅到期后自动停止，不会自动续费。到期前已发放的积分可继续使用。",
+    "q5": "支持哪些支付方式？",
+    "a5": "支持支付宝和 PayPal 支付。支付宝以人民币结算，PayPal 以美元结算。"
+  },
+  "contact": {
+    "title": "需要更多？定制用量",
+    "desc": "大额积分包、专属套餐、API 对接，欢迎随时联系",
+    "wechat": "手机号同微信",
+    "email": "邮箱"
+  },
+  "modelPricing": {
+    "title": "模型定价明细",
+    "desc": "所有模型的积分消耗一览，参数不同价格不同",
+    "tabs": {
+      "image": "图片生成",
+      "video": "视频生成",
+      "upscale": "高清放大",
+      "removebg": "一键抠图"
+    },
+    "headers": {
+      "model": "模型",
+      "creditsPerImage": "积分/张",
+      "resolution": "分辨率",
+      "duration": "时长",
+      "credits": "积分",
+      "version": "版本",
+      "audio": "音频",
+      "outputSize": "输出尺寸",
+      "operation": "操作"
+    },
+    "comingSoon": "即将上线",
+    "magnificNote": "Magnific 官方 API — 价格仅需官方 1/10",
+    "removeBgNote": "固定 {{cost}} 积分/张，不限尺寸。",
+    "billingRule": "计费规则",
+    "perSecond": "积分/秒",
+    "withAudio": "带音频",
+    "withoutAudio": "不带音频",
+    "fixedPrice": "固定价格",
+    "noAudio": "无",
+    "hasAudio": "有"
+  }
+}

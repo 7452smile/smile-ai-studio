@@ -1,0 +1,112 @@
+{
+  "title": "Choose Your Creative Journey",
+  "desc": "All plans include access to every model. Choose what fits you best.",
+  "monthly": "Monthly",
+  "annual": "Annual",
+  "annualSave": "Best value",
+  "perMonth": "/mo",
+  "perYear": "/yr",
+  "equivalentMonthly": "≈ ${{price}}/mo",
+  "billedAnnually": "Billed ${{price}}/year",
+  "free": "Free",
+  "freeForever": "Free forever",
+  "currentPlan": "Current Plan",
+  "currentButton": "Current Plan",
+  "freeButton": "Free",
+  "included": "Included",
+  "subscribe": "Subscribe Now",
+  "processing": "Processing...",
+  "loginRequired": "Login Required",
+  "loginRequiredDesc": "Please log in to subscribe.",
+  "createOrderFailed": "Order Failed",
+  "paymentOpened": "Payment Page Opened",
+  "paymentOpenedDesc": "Complete payment in the new window. It will update automatically.",
+  "expires": "Expires: {{date}}",
+  "credits": "Credits",
+  "concurrency": "Concurrency",
+  "historyRetention": "History",
+  "payMethod": {
+    "title": "Select Payment Method",
+    "desc": "{{tier}} · {{cycle}}",
+    "alipay": "Alipay",
+    "paypal": "PayPal"
+  },
+  "tiers": {
+    "free": { "name": "Free" },
+    "starter": { "name": "Starter" },
+    "advanced": { "name": "Advanced" },
+    "flagship": { "name": "Flagship" },
+    "studio": { "name": "Studio" }
+  },
+  "tierFeatures": {
+    "free": ["188 credits on signup", "Daily login +10 (max 200)", "All models"],
+    "starter": ["2,000 credits/mo", "3 image + 1 video concurrent", "All models"],
+    "advanced": ["6,000 credits/mo", "5 image + 5 video concurrent", "All models"],
+    "flagship": ["15,000 credits/mo", "Unlimited concurrent", "7-day history", "Early access"],
+    "studio": ["60,000 credits/mo", "Unlimited concurrent", "30-day history", "1v1 support", "API access", "Beta access", "VIP fast lane"]
+  },
+  "tierConcurrency": {
+    "free": "1 task",
+    "starter": "3 image + 1 video",
+    "advanced": "5 image + 5 video",
+    "flagship": "Unlimited",
+    "studio": "Unlimited"
+  },
+  "tierHistory": {
+    "free": "1 hour",
+    "starter": "1 hour",
+    "advanced": "1 hour",
+    "flagship": "7 days",
+    "studio": "30 days"
+  },
+  "faq": {
+    "title": "FAQ",
+    "q1": "How long do credits last?",
+    "a1": "Credits from any subscription plan are valid for 2 years. Even after your subscription expires, remaining credits can still be used within 2 years.",
+    "q2": "How do credits work?",
+    "a2": "Each generation costs different credits. Images ~2-4, videos 14-495 (depends on model/params), HD upscale 10-120, background removal 2.",
+    "q3": "What's the annual discount?",
+    "a3": "Annual plans give you 12 months for the price of 10 (save 2 months). Credits are granted upfront.",
+    "q4": "Can I cancel?",
+    "a4": "Subscriptions stop at expiry with no auto-renewal. Remaining credits stay usable.",
+    "q5": "What payment methods?",
+    "a5": "Alipay (CNY) and PayPal (USD) are supported."
+  },
+  "contact": {
+    "title": "Need More? Custom Plans",
+    "desc": "Bulk credits, tailored plans, API integration — contact us",
+    "wechat": "Phone = WeChat",
+    "email": "Email"
+  },
+  "modelPricing": {
+    "title": "Model Pricing Details",
+    "desc": "Credit costs for all models — varies by parameters",
+    "tabs": {
+      "image": "Image",
+      "video": "Video",
+      "upscale": "Upscale",
+      "removebg": "Remove BG"
+    },
+    "headers": {
+      "model": "Model",
+      "creditsPerImage": "Credits/Image",
+      "resolution": "Resolution",
+      "duration": "Duration",
+      "credits": "Credits",
+      "version": "Version",
+      "audio": "Audio",
+      "outputSize": "Output Size",
+      "operation": "Operation"
+    },
+    "comingSoon": "Coming Soon",
+    "magnificNote": "Magnific Official API — 1/10 of official price",
+    "removeBgNote": "Fixed {{cost}} credits/image, any size.",
+    "billingRule": "Billing Rule",
+    "perSecond": "credits/sec",
+    "withAudio": "w/ audio",
+    "withoutAudio": "w/o audio",
+    "fixedPrice": "Fixed price",
+    "noAudio": "No",
+    "hasAudio": "Yes"
+  }
+}

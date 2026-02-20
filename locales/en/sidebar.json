@@ -1,0 +1,37 @@
+{
+  "nav": {
+    "imageCreation": "Image Creation",
+    "videoGeneration": "Video Generation",
+    "magnific": "Magnific HD",
+    "removeBg": "Remove BG",
+    "pricing": "Subscription",
+    "modelPricing": "Model Pricing",
+    "referral": "Referral",
+    "imageToPrompt": "Image to Prompt",
+    "admin": "Admin",
+    "logout": "Log Out",
+    "comingSoon": "Coming Soon"
+  },
+  "credits": {
+    "remaining": "Credits",
+    "estimated": "Est. Cost",
+    "manage": "Manage Plan",
+    "upgrade": "Upgrade",
+    "loggedIn": "Logged in: {{user}}",
+    "expires": "Expires {{date}}"
+  },
+  "redeem": {
+    "title": "Redeem Code",
+    "placeholder": "Enter code",
+    "button": "Redeem",
+    "success": "Redeemed! Got {{credits}} credits",
+    "successSub": "Redeemed! Activated {{tier}}, got {{credits}} credits",
+    "failed": "Redemption failed"
+  },
+  "tierNames": {
+    "starter": "Starter",
+    "advanced": "Advanced",
+    "flagship": "Flagship",
+    "studio": "Studio"
+  }
+}
