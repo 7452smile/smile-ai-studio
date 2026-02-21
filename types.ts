@@ -67,12 +67,6 @@ export type KlingAspectRatio = 'auto' | '16:9' | '9:16' | '1:1';
 export type KlingDuration = 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
 export type KlingShotType = 'customize' | 'intelligent';
 
-// Kling Element - 用于保持角色/物体一致性
-export interface KlingElement {
-  reference_image_urls?: string[]; // 参考图片 URL 数组
-  frontal_image_url?: string; // 正面参考图片 URL
-}
-
 // Kling Multi-Prompt Item (Pro 版本)
 export interface KlingMultiPromptItem {
   prompt: string;

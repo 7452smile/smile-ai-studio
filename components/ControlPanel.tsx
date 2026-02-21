@@ -83,15 +83,13 @@ const ControlPanel: React.FC = memo(() => {
     klingAspectRatio, setKlingAspectRatio,
     klingNegativePrompt, setKlingNegativePrompt,
     klingCfgScale, setKlingCfgScale,
-    klingGenerateAudio, setKlingGenerateAudio,
     klingShotType, setKlingShotType,
     klingSeed, setKlingSeed,
     klingEndImage, setKlingEndImage,
     klingReferenceVideoUrl, setKlingReferenceVideoUrl,
-    // Kling 新增参数
-    klingElements, setKlingElements,
     klingMultiPromptEnabled, setKlingMultiPromptEnabled,
     klingMultiPrompts, setKlingMultiPrompts,
+    klingGenerateAudio, setKlingGenerateAudio,
     // 放大参数
     upscaleImage, setUpscaleImage,
     upscaleImageDimensions,
@@ -2073,6 +2071,27 @@ const ControlPanel: React.FC = memo(() => {
           </div>
         )}
 
+        {/* 生成音频开关 */}
+        <div className="flex items-center justify-between">
+          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+            <Volume2 className="w-3 h-3" />
+            <span>{t('video.generateAudio')}</span>
+            <Tooltip text={t('kling.audioTooltip')}>
+              <HelpCircle className="w-3 h-3 cursor-help" />
+            </Tooltip>
+          </label>
+          <button
+            onClick={() => setKlingGenerateAudio(!klingGenerateAudio)}
+            className={`px-3 py-1 rounded-lg border text-xs transition-all ${
+              klingGenerateAudio
+                ? 'border-accent bg-accent-subtle text-accent'
+                : 'border-surface-border text-content-muted hover:bg-surface-hover'
+            }`}
+          >
+            {klingGenerateAudio ? t('video.on') : t('video.off')}
+          </button>
+        </div>
+
         {/* 时长选择 - 非{t('wan.multiShot')}模式时显示 */}
         {!klingMultiPromptEnabled && (
           <div className="space-y-2">
@@ -2124,32 +2143,6 @@ const ControlPanel: React.FC = memo(() => {
             ))}
           </div>
         </div>
-
-        {/* 音频生成开关 - 仅 Pro 和 Omni Pro 支持，V2V 不支持 */}
-        {!isV2V && (
-          <div className="space-y-2">
-            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
-              <Volume2 className="w-3 h-3" />
-              <span>{t('video.generateAudio')}</span>
-              <Tooltip text={t('kling.audioTooltip')}>
-                <HelpCircle className="w-3 h-3 cursor-help" />
-              </Tooltip>
-            </label>
-            <button
-              onClick={() => setKlingGenerateAudio(!klingGenerateAudio)}
-              className={`w-full px-3 py-2 rounded-lg border text-sm flex items-center justify-between transition-all ${
-                klingGenerateAudio
-                  ? 'border-green-500/50 bg-green-500/10 text-green-400'
-                  : 'border-orange-500/50 bg-orange-500/10 text-orange-400'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                {klingGenerateAudio ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-                <span>{klingGenerateAudio ? t('video.on') : t('video.off')}</span>
-              </div>
-            </button>
-          </div>
-        )}
 
         {/* 镜头类型 - Pro/Std */}
         {(klingModelVersion === 'kling-3-pro' || klingModelVersion === 'kling-3-std') && (
@@ -2271,93 +2264,6 @@ const ControlPanel: React.FC = memo(() => {
                 />
                 <UploadCloud className="w-4 h-4 text-content-muted mb-1" />
                 <span className="text-xs text-content-tertiary">{t('video.firstFrameDesc')}</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Elements - 角色/物体一致性参考图片，仅 Pro 和 Omni Pro 支持 */}
-        {!isV2V && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
-                <Users className="w-3 h-3" />
-                <span>{t('kling.elements')}</span>
-                <Tooltip text={t('kling.elementsTooltip')}>
-                  <HelpCircle className="w-3 h-3 cursor-help" />
-                </Tooltip>
-              </label>
-              {klingElements.length === 0 && (
-                <button
-                  onClick={() => setKlingElements([{ frontal_image_url: '', reference_image_urls: [] }])}
-                  className="px-2 py-1 rounded border border-surface-border text-xs text-content-muted hover:bg-surface-hover transition-all flex items-center space-x-1"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>Add</span>
-                </button>
-              )}
-            </div>
-
-            {klingElements.length > 0 && (
-              <div className="space-y-3 p-3 bg-surface-hover rounded-lg border border-surface-border">
-                {klingElements.map((element, index) => (
-                  <div key={index} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-content-muted">@Element{index + 1}</span>
-                      <button
-                        onClick={() => {
-                          const newElements = klingElements.filter((_, i) => i !== index);
-                          setKlingElements(newElements);
-                        }}
-                        className="p-1 text-red-400 hover:bg-red-500/20 rounded"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-xs text-content-tertiary">Front reference URL</span>
-                      <input
-                        type="url"
-                        value={element.frontal_image_url || ''}
-                        onChange={(e) => {
-                          const newElements = [...klingElements];
-                          newElements[index] = { ...newElements[index], frontal_image_url: e.target.value };
-                          setKlingElements(newElements);
-                        }}
-                        placeholder="https://example.com/front.jpg"
-                        className="input w-full text-xs"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-xs text-content-tertiary">Other angles URL (comma separated)</span>
-                      <input
-                        type="text"
-                        value={element.reference_image_urls?.join(', ') || ''}
-                        onChange={(e) => {
-                          const newElements = [...klingElements];
-                          const urls = e.target.value.split(',').map(s => s.trim()).filter(s => s);
-                          newElements[index] = { ...newElements[index], reference_image_urls: urls };
-                          setKlingElements(newElements);
-                        }}
-                        placeholder="url1, url2, url3..."
-                        className="input w-full text-xs"
-                      />
-                    </div>
-                  </div>
-                ))}
-
-                {/* 添加更多 Element */}
-                {klingElements.length < 4 && (
-                  <button
-                    onClick={() => {
-                      setKlingElements([...klingElements, { frontal_image_url: '', reference_image_urls: [] }]);
-                    }}
-                    className="w-full py-2 border-2 border-dashed border-surface-border rounded-lg text-xs text-content-muted hover:border-accent hover:text-accent transition-all flex items-center justify-center space-x-1"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>Add ({klingElements.length}/4)</span>
-                  </button>
-                )}
               </div>
             )}
           </div>
@@ -2550,6 +2456,7 @@ const ControlPanel: React.FC = memo(() => {
                 />
                 <UploadCloud className="w-5 h-5 text-content-muted mb-1" />
                 <span className="text-xs text-content-tertiary">{t('prompt.clickOrDrag')}</span>
+                {videoModel === 'kling' && <span className="text-xs text-content-tertiary">{t('kling.minImageSize')}</span>}
               </div>
             )}
           </div>

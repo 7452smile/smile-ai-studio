@@ -1,7 +1,7 @@
 // Supabase API 服务
 import { createClient, RealtimeChannel } from '@supabase/supabase-js';
 import i18next from 'i18next';
-import { AspectRatio, MinimaxResolution, MinimaxDuration, WanResolution, WanDuration, WanSize720p, WanSize1080p, WanShotType, PixVerseMode, PixVerseResolution, PixVerseDuration, PixVerseStyle, LtxResolution, LtxDuration, LtxFps, RunwayRatio, RunwayDuration, KlingModelVersion, KlingAspectRatio, KlingDuration, KlingShotType, KlingElement, KlingMultiPromptItem, MagnificScaleFactor, MagnificOptimizedFor, MagnificEngine, PrecisionScaleFactor, PrecisionFlavor, SubscriptionTier, BillingCycle, UserSubscription, ReferralInfo } from '../types';
+import { AspectRatio, MinimaxResolution, MinimaxDuration, WanResolution, WanDuration, WanSize720p, WanSize1080p, WanShotType, PixVerseMode, PixVerseResolution, PixVerseDuration, PixVerseStyle, LtxResolution, LtxDuration, LtxFps, RunwayRatio, RunwayDuration, KlingModelVersion, KlingAspectRatio, KlingDuration, KlingShotType, KlingMultiPromptItem, MagnificScaleFactor, MagnificOptimizedFor, MagnificEngine, PrecisionScaleFactor, PrecisionFlavor, SubscriptionTier, BillingCycle, UserSubscription, ReferralInfo } from '../types';
 
 const SUPABASE_URL = 'https://ncdlejeiqyhfauxkwred.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5jZGxlamVpcXloZmF1eGt3cmVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzNjA1MzQsImV4cCI6MjA4NTkzNjUzNH0.wznPXmHM-oVtuFy6PYS6ELy4GMr1k7_EDNkZJLhOXLw';
@@ -516,8 +516,6 @@ export interface KlingVideoParams {
     start_image?: string; // I2V 首帧图片
     end_image?: string; // I2V 尾帧图片
     reference_video?: string; // V2V 参考视频 URL
-    // 新增参数
-    elements?: KlingElement[]; // 角色/物体一致性参考图片
     multi_prompt?: KlingMultiPromptItem[] | string[]; // 多镜头提示词
 }
 

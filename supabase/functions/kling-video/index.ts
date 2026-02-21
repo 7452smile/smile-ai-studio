@@ -11,22 +11,17 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const WEBHOOK_BASE_URL = Deno.env.get("WEBHOOK_BASE_URL") || "";
 
-// Kling 3 积分消耗计算（区分音频）
-// Pro: 带音频39/秒, 不带音频23/秒
-// Std: 带音频31/秒, 不带音频17/秒
-// Omni Pro / Omni Pro V2V: 带音频28/秒, 不带音频22/秒
-// Omni Std / Omni Std V2V: 带音频22/秒, 不带音频17/秒
-const getKlingCreditsCost = (modelVersion: string, duration: number, generateAudio: boolean): number => {
-    const rates: Record<string, [number, number]> = {
-        'kling-3-pro':          [39, 23],
-        'kling-3-std':          [31, 17],
-        'kling-3-omni-pro':     [28, 22],
-        'kling-3-omni-pro-v2v': [28, 22],
-        'kling-3-omni-std':     [22, 17],
-        'kling-3-omni-std-v2v': [22, 17],
+// Kling 3 积分消耗计算
+const getKlingCreditsCost = (modelVersion: string, duration: number): number => {
+    const rates: Record<string, number> = {
+        'kling-3-pro':          23,
+        'kling-3-std':          17,
+        'kling-3-omni-pro':     22,
+        'kling-3-omni-pro-v2v': 22,
+        'kling-3-omni-std':     17,
+        'kling-3-omni-std-v2v': 17,
     };
-    const [withAudio, withoutAudio] = rates[modelVersion] || [39, 23];
-    return Math.round(duration * (generateAudio ? withAudio : withoutAudio));
+    return Math.round(duration * (rates[modelVersion] || 23));
 };
 
 serve(async (req) => {
@@ -56,14 +51,13 @@ serve(async (req) => {
             aspect_ratio = "16:9",
             negative_prompt,
             cfg_scale = 0.5,
-            generate_audio = true,
             shot_type = "customize",
             seed,
             start_image,
             end_image,
             reference_video,
-            elements,
-            multi_prompt
+            multi_prompt,
+            generate_audio = true
         } = body;
 
         const user_id = await getAuthenticatedUserId(req, bodyUserId);
@@ -112,7 +106,8 @@ serve(async (req) => {
         // 构建请求体
         const requestBody: any = {
             duration: String(duration),
-            aspect_ratio
+            aspect_ratio,
+            generate_audio
         };
 
         // prompt 或 multi_prompt（二选一）
@@ -139,18 +134,9 @@ serve(async (req) => {
         if (cfg_scale !== undefined && cfg_scale !== 0.5 && (model_version === 'kling-3-pro' || model_version === 'kling-3-std' || isV2V)) {
             requestBody.cfg_scale = cfg_scale;
         }
-        // generate_audio: V2V 不支持
-        if (generate_audio !== undefined && !isV2V) {
-            requestBody.generate_audio = generate_audio;
-        }
         // shot_type: Pro/Std 支持 customize/intelligent
         if (shot_type && (model_version === 'kling-3-pro' || model_version === 'kling-3-std') && !multi_prompt?.length) {
             requestBody.shot_type = shot_type;
-        }
-
-        // elements: V2V 不支持
-        if (elements && elements.length > 0 && !isV2V) {
-            requestBody.elements = elements;
         }
 
         // 上传首帧图片到 R2（如果有）
@@ -199,8 +185,8 @@ serve(async (req) => {
         const concurrency = await checkConcurrencyById(user_id, "video");
         if (!concurrency.allowed) return jsonResponse({ error: concurrency.reason }, 429);
 
-        // 计算积分并预扣用户积分（V2V 不支持音频，按无音频计价）
-        const creditsCost = getKlingCreditsCost(model_version, duration, isV2V ? false : (generate_audio ?? true));
+        // 计算积分并预扣用户积分
+        const creditsCost = getKlingCreditsCost(model_version, duration);
         const deductResult = await deductUserCreditsById(user_id, creditsCost);
         if (!deductResult.success) return jsonResponse({ error: deductResult.error }, 402);
 
@@ -253,7 +239,6 @@ serve(async (req) => {
                     aspect_ratio,
                     negative_prompt,
                     cfg_scale,
-                    generate_audio,
                     shot_type,
                     seed,
                     is_image_to_video: !!start_image,
@@ -261,7 +246,6 @@ serve(async (req) => {
                     is_video_to_video: isV2V,
                     uploaded_start_image_url: uploadedStartImageUrl,
                     uploaded_end_image_url: uploadedEndImageUrl,
-                    has_elements: !!elements?.length,
                     has_multi_prompt: !!multi_prompt?.length,
                     multi_prompt_count: multi_prompt?.length || 0
                 }

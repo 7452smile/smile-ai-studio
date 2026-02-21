@@ -33,7 +33,6 @@ import {
     KlingAspectRatio,
     KlingDuration,
     KlingShotType,
-    KlingElement,
     KlingMultiPromptItem,
     MagnificScaleFactor,
     MagnificOptimizedFor,
@@ -175,8 +174,6 @@ interface GenerationContextType {
     setKlingNegativePrompt: (s: string) => void;
     klingCfgScale: number;
     setKlingCfgScale: (v: number) => void;
-    klingGenerateAudio: boolean;
-    setKlingGenerateAudio: (v: boolean) => void;
     klingShotType: KlingShotType;
     setKlingShotType: (t: KlingShotType) => void;
     klingSeed: string;
@@ -185,13 +182,12 @@ interface GenerationContextType {
     setKlingEndImage: (f: File | null) => void;
     klingReferenceVideoUrl: string;
     setKlingReferenceVideoUrl: (s: string) => void;
-    // Kling 新增参数
-    klingElements: KlingElement[];
-    setKlingElements: (e: KlingElement[]) => void;
     klingMultiPromptEnabled: boolean;
     setKlingMultiPromptEnabled: (v: boolean) => void;
     klingMultiPrompts: KlingMultiPromptItem[];
     setKlingMultiPrompts: (p: KlingMultiPromptItem[]) => void;
+    klingGenerateAudio: boolean;
+    setKlingGenerateAudio: (v: boolean) => void;
 
     // 放大参数
     upscaleImage: File | null;
@@ -561,17 +557,15 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
     const [klingAspectRatio, setKlingAspectRatio] = useState<KlingAspectRatio>('16:9');
     const [klingNegativePrompt, setKlingNegativePrompt] = useState('');
     const [klingCfgScale, setKlingCfgScale] = useState(0.5);
-    const [klingGenerateAudio, setKlingGenerateAudio] = useState(true);
     const [klingShotType, setKlingShotType] = useState<KlingShotType>('customize');
     const [klingSeed, setKlingSeed] = useState('');
     const [klingEndImage, setKlingEndImage] = useState<File | null>(null);
     const [klingReferenceVideoUrl, setKlingReferenceVideoUrl] = useState('');
-    // Kling 新增参数
-    const [klingElements, setKlingElements] = useState<KlingElement[]>([]);
     const [klingMultiPromptEnabled, setKlingMultiPromptEnabled] = useState(false);
     const [klingMultiPrompts, setKlingMultiPrompts] = useState<KlingMultiPromptItem[]>([
         { prompt: '', duration: '5' }
     ]);
+    const [klingGenerateAudio, setKlingGenerateAudio] = useState(true);
 
     // Auto-save video prompt
     useEffect(() => {
@@ -983,13 +977,12 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
             runwayDuration,
             klingModelVersion,
             klingDuration,
-            klingGenerateAudio,
             upscaleModel,
             imageWidth: upscaleImageDimensions?.width || 0,
             imageHeight: upscaleImageDimensions?.height || 0,
             scaleFactor,
         });
-    }, [activeMode, imageModel, videoModel, minimaxResolution, minimaxDuration, wanResolution, wanDuration, pixverseResolution, pixverseDuration, ltxResolution, ltxDuration, runwayDuration, klingModelVersion, klingDuration, klingGenerateAudio, upscaleModel, upscaleImageDimensions, magnificScaleFactor, precisionScaleFactor]);
+    }, [activeMode, imageModel, videoModel, minimaxResolution, minimaxDuration, wanResolution, wanDuration, pixverseResolution, pixverseDuration, ltxResolution, ltxDuration, runwayDuration, klingModelVersion, klingDuration, upscaleModel, upscaleImageDimensions, magnificScaleFactor, precisionScaleFactor]);
 
     const handleGenerate = useCallback(async () => {
         // 检查登录状态
@@ -1673,11 +1666,7 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
                         }
                     }
 
-                    // 准备 elements（如果有，V2V 不支持）
-                    const elementsData = (klingElements.length > 0 && !isKlingV2V)
-                        ? klingElements.filter(e => e.frontal_image_url || (e.reference_image_urls && e.reference_image_urls.length > 0))
-                        : undefined;
-
+                    // 准备请求参数
                     // 调用 API（根据模型版本传递正确的参数）
                     const result = await generateKlingVideo({
                         user_id: userId || undefined,
@@ -1689,17 +1678,14 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
                         // negative_prompt 和 cfg_scale: Pro/Std 和 V2V 支持
                         negative_prompt: (klingModelVersion === 'kling-3-pro' || klingModelVersion === 'kling-3-std' || isKlingV2V) ? (klingNegativePrompt || undefined) : undefined,
                         cfg_scale: (klingModelVersion === 'kling-3-pro' || klingModelVersion === 'kling-3-std' || isKlingV2V) ? klingCfgScale : undefined,
-                        // generate_audio: V2V 不支持
-                        generate_audio: !isKlingV2V ? klingGenerateAudio : undefined,
                         // shot_type: Pro/Std 支持
                         shot_type: ((klingModelVersion === 'kling-3-pro' || klingModelVersion === 'kling-3-std') && !multiPromptData) ? klingShotType : undefined,
                         seed: klingSeed ? parseInt(klingSeed) : undefined,
                         start_image: startImageUrl,
                         end_image: endImageUrl,
                         reference_video: isKlingV2V ? klingReferenceVideoUrl : undefined,
-                        // 新增参数
-                        elements: elementsData,
-                        multi_prompt: multiPromptData
+                        multi_prompt: multiPromptData,
+                        generate_audio: klingGenerateAudio
                     });
 
                     if (!result.success) {
@@ -1944,7 +1930,7 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
             setLogs([]);
             addNotification(i18next.t('common:generation.generateFailed'), error.message || i18next.t('common:generation.unknownError'), 'error');
         }
-    }, [isLoggedIn, userId, userCredits, estimatedCost, activeMode, imageModel, imagePrompt, imageReferenceImages, imageSeed, imageAspectRatio, imageSafetyChecker, videoModel, videoPrompt, videoFirstFrame, minimaxModelVersion, minimaxResolution, minimaxDuration, minimaxPromptOptimizer, minimaxLastFrameImage, wanModelVersion, wanResolution, wanDuration, wanSize, wanNegativePrompt, wanEnablePromptExpansion, wanShotType, wanSeed, pixverseMode, pixverseResolution, pixverseDuration, pixverseNegativePrompt, pixverseStyle, pixverseSeed, pixverseLastFrameImage, ltxResolution, ltxDuration, ltxFps, ltxGenerateAudio, ltxSeed, runwayModelVersion, runwayRatio, runwayDuration, runwaySeed, klingModelVersion, klingDuration, klingAspectRatio, klingNegativePrompt, klingCfgScale, klingGenerateAudio, klingShotType, klingSeed, klingEndImage, klingReferenceVideoUrl, upscaleModel, upscaleImageFile, upscalePrompt, addNotification, addLog]);
+    }, [isLoggedIn, userId, userCredits, estimatedCost, activeMode, imageModel, imagePrompt, imageReferenceImages, imageSeed, imageAspectRatio, imageSafetyChecker, videoModel, videoPrompt, videoFirstFrame, minimaxModelVersion, minimaxResolution, minimaxDuration, minimaxPromptOptimizer, minimaxLastFrameImage, wanModelVersion, wanResolution, wanDuration, wanSize, wanNegativePrompt, wanEnablePromptExpansion, wanShotType, wanSeed, pixverseMode, pixverseResolution, pixverseDuration, pixverseNegativePrompt, pixverseStyle, pixverseSeed, pixverseLastFrameImage, ltxResolution, ltxDuration, ltxFps, ltxGenerateAudio, ltxSeed, runwayModelVersion, runwayRatio, runwayDuration, runwaySeed, klingModelVersion, klingDuration, klingAspectRatio, klingNegativePrompt, klingCfgScale, klingShotType, klingSeed, klingEndImage, klingReferenceVideoUrl, upscaleModel, upscaleImageFile, upscalePrompt, addNotification, addLog]);
 
     const isAdmin = useMemo(() => {
         const phone = userPhone?.replace(/^\+86/, '') || '';
@@ -2016,15 +2002,13 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
         klingAspectRatio, setKlingAspectRatio,
         klingNegativePrompt, setKlingNegativePrompt,
         klingCfgScale, setKlingCfgScale,
-        klingGenerateAudio, setKlingGenerateAudio,
         klingShotType, setKlingShotType,
         klingSeed, setKlingSeed,
         klingEndImage, setKlingEndImage,
         klingReferenceVideoUrl, setKlingReferenceVideoUrl,
-        // Kling 新增参数
-        klingElements, setKlingElements,
         klingMultiPromptEnabled, setKlingMultiPromptEnabled,
         klingMultiPrompts, setKlingMultiPrompts,
+        klingGenerateAudio, setKlingGenerateAudio,
         // 放大参数
         upscaleImage: upscaleImageFile, setUpscaleImage,
         upscaleImageDimensions,
@@ -2065,7 +2049,7 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
         pixverseMode, pixverseResolution, pixverseDuration, pixverseNegativePrompt, pixverseStyle, pixverseSeed, pixverseLastFrameImage,
         ltxResolution, ltxDuration, ltxFps, ltxGenerateAudio, ltxSeed,
         runwayModelVersion, runwayRatio, runwayDuration, runwaySeed,
-        klingModelVersion, klingDuration, klingAspectRatio, klingNegativePrompt, klingCfgScale, klingGenerateAudio, klingShotType, klingSeed, klingEndImage, klingReferenceVideoUrl, klingElements, klingMultiPromptEnabled, klingMultiPrompts,
+        klingModelVersion, klingDuration, klingAspectRatio, klingNegativePrompt, klingCfgScale, klingShotType, klingSeed, klingEndImage, klingReferenceVideoUrl, klingMultiPromptEnabled, klingMultiPrompts, klingGenerateAudio,
         upscaleImageFile, upscaleImageDimensions, upscalePrompt,
         magnificScaleFactor, magnificOptimizedFor, magnificCreativity, magnificHdr, magnificResemblance, magnificFractality, magnificEngine,
         precisionScaleFactor, precisionFlavor, precisionSharpen, precisionSmartGrain, precisionUltraDetail,

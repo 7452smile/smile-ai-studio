@@ -82,17 +82,16 @@ export function getRunwayCreditsCost(duration: RunwayDuration): number {
 }
 
 
-export function getKlingCreditsCost(modelVersion: KlingModelVersion, duration: KlingDuration, generateAudio: boolean = true): number {
-    const rates: Record<string, [number, number]> = {
-        'kling-3-pro':          [39, 23],
-        'kling-3-std':          [31, 17],
-        'kling-3-omni-pro':     [28, 22],
-        'kling-3-omni-pro-v2v': [28, 22],
-        'kling-3-omni-std':     [22, 17],
-        'kling-3-omni-std-v2v': [22, 17],
+export function getKlingCreditsCost(modelVersion: KlingModelVersion, duration: KlingDuration): number {
+    const rates: Record<string, number> = {
+        'kling-3-pro':          23,
+        'kling-3-std':          17,
+        'kling-3-omni-pro':     22,
+        'kling-3-omni-pro-v2v': 22,
+        'kling-3-omni-std':     17,
+        'kling-3-omni-std-v2v': 17,
     };
-    const [withAudio, withoutAudio] = rates[modelVersion] || [39, 23];
-    return Math.round(duration * (generateAudio ? withAudio : withoutAudio));
+    return Math.round(duration * (rates[modelVersion] || 23));
 }
 
 // ============================================================
@@ -135,7 +134,6 @@ export interface CreditsCostParams {
     runwayDuration?: RunwayDuration;
     klingModelVersion?: KlingModelVersion;
     klingDuration?: KlingDuration;
-    klingGenerateAudio?: boolean;
     // 放大
     upscaleModel?: UpscaleModelType;
     imageWidth?: number;
@@ -177,7 +175,7 @@ export function estimateCreditsCost(params: CreditsCostParams): number {
             case 'runway':
                 return getRunwayCreditsCost(params.runwayDuration || 5);
             case 'kling':
-                return getKlingCreditsCost(params.klingModelVersion || 'kling-3-pro', params.klingDuration || 5, params.klingGenerateAudio ?? true);
+                return getKlingCreditsCost(params.klingModelVersion || 'kling-3-pro', params.klingDuration || 5);
             default:
                 return 0;
         }

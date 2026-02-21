@@ -16,7 +16,7 @@ const COOLDOWN_HOURS = 24;
 export async function getAvailableApiKey(): Promise<{ id: string; api_key: string } | null> {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const cooldownThreshold = new Date(Date.now() - COOLDOWN_HOURS * 60 * 60 * 1000).toISOString();
+    const cooldownThreshold = new Date().toISOString();
 
     // 选 is_active=true 且（没有冷却时间 或 冷却已过期）的 key，按余额降序
     const { data, error } = await supabase
@@ -94,11 +94,14 @@ export async function callFreepikApi(
     for (let attempt = 0; attempt < maxRetries; attempt++) {
         const apiKey = await getAvailableApiKey();
 
-        if (!apiKey || triedKeyIds.has(apiKey.id)) {
+        if (!apiKey) {
             return { success: false, error: "没有可用的 API Key" };
         }
 
-        triedKeyIds.add(apiKey.id);
+        // 已因限流被冷却的 key 不再重试
+        if (triedKeyIds.has(apiKey.id)) {
+            return { success: false, error: "没有可用的 API Key" };
+        }
 
         try {
             const response = await fetch(`https://api.freepik.com${endpoint}`, {
@@ -116,6 +119,7 @@ export async function callFreepikApi(
             if (isQuotaExceededError(responseData)) {
                 console.log(`API Key ${apiKey.id} quota exceeded, cooling down and switching...`);
                 await cooldownApiKey(apiKey.id);
+                triedKeyIds.add(apiKey.id);
                 lastError = "API Key 触发限流，正在切换...";
                 continue;
             }

@@ -237,7 +237,8 @@
     "negativeTooltip": "Describe elements you don't want in the video",
     "endImageTooltip": "Upload an image as the last frame",
     "referenceVideoTooltip": "Provide a 3-10s reference video URL. Use @Video1 in prompt to reference",
-    "seedTooltip": "Using the same seed and parameters produces similar results"
+    "seedTooltip": "Using the same seed and parameters produces similar results",
+    "minImageSize": "Min size 300×300"
   },
   "generate": {
     "button": "Generate",
