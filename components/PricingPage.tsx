@@ -54,7 +54,7 @@ const TIERS: TierConfig[] = [
     {
         id: 'studio',
         icon: <Building className="w-5 h-5 text-emerald-400" />,
-        monthlyCredits: '60,000', annualCredits: '720,000',
+        monthlyCredits: '50,000', annualCredits: '600,000',
     },
 ];
 
@@ -63,7 +63,7 @@ const TIER_ORDER: SubscriptionTier[] = ['free', 'starter', 'advanced', 'flagship
 const PricingPage: React.FC = () => {
     const { t, i18n } = useTranslation(['pricing', 'common']);
     const { isLoggedIn, userId, userSubscription, addNotification } = useGeneration();
-    const [billingCycle, setBillingCycle] = useState<BillingCycle>('annual');
+    const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly'); // 暂时隐藏年付，默认月付，恢复时改回 'annual'
     const [loadingTier, setLoadingTier] = useState<string | null>(null);
     const [payMethodModal, setPayMethodModal] = useState<SubscriptionTier | null>(null);
 
@@ -123,8 +123,8 @@ const PricingPage: React.FC = () => {
                 <h1 className="text-3xl font-semibold font-display text-content mb-3">{t('pricing:title')}</h1>
                 <p className="text-content-tertiary max-w-xl mx-auto mb-6">{t('pricing:desc')}</p>
 
-                {/* Billing Toggle */}
-                <div className="inline-flex items-center bg-surface-raised rounded-xl p-1 border border-surface-border">
+                {/* Billing Toggle - 暂时隐藏年付选项，恢复时去掉 hidden 即可 */}
+                <div className="hidden inline-flex items-center bg-surface-raised rounded-xl p-1 border border-surface-border">
                     <button
                         onClick={() => setBillingCycle('monthly')}
                         className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${

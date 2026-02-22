@@ -43,7 +43,7 @@
     "starter": ["2,000 credits/mo", "3 image + 1 video concurrent", "All models"],
     "advanced": ["6,000 credits/mo", "5 image + 5 video concurrent", "All models"],
     "flagship": ["15,000 credits/mo", "Unlimited concurrent", "7-day history", "Early access"],
-    "studio": ["60,000 credits/mo", "Unlimited concurrent", "30-day history", "1v1 support", "API access", "Beta access", "VIP fast lane"]
+    "studio": ["50,000 credits/mo", "Unlimited concurrent", "30-day history", "1v1 support", "API access", "Beta access", "VIP fast lane"]
   },
   "tierConcurrency": {
     "free": "1 task",

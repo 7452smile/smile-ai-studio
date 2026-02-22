@@ -12,8 +12,16 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "
 const WEBHOOK_BASE_URL = Deno.env.get("WEBHOOK_BASE_URL") || "";
 
 // Kling 3 积分消耗计算
-const getKlingCreditsCost = (modelVersion: string, duration: number): number => {
-    const rates: Record<string, number> = {
+const getKlingCreditsCost = (modelVersion: string, duration: number, generateAudio = true): number => {
+    const audioRates: Record<string, number> = {
+        'kling-3-pro':          39,
+        'kling-3-std':          31,
+        'kling-3-omni-pro':     28,
+        'kling-3-omni-pro-v2v': 28,
+        'kling-3-omni-std':     22,
+        'kling-3-omni-std-v2v': 22,
+    };
+    const noAudioRates: Record<string, number> = {
         'kling-3-pro':          23,
         'kling-3-std':          17,
         'kling-3-omni-pro':     22,
@@ -21,7 +29,8 @@ const getKlingCreditsCost = (modelVersion: string, duration: number): number => 
         'kling-3-omni-std':     17,
         'kling-3-omni-std-v2v': 17,
     };
-    return Math.round(duration * (rates[modelVersion] || 23));
+    const rates = generateAudio ? audioRates : noAudioRates;
+    return Math.round(duration * (rates[modelVersion] || (generateAudio ? 39 : 23)));
 };
 
 serve(async (req) => {
@@ -186,7 +195,7 @@ serve(async (req) => {
         if (!concurrency.allowed) return jsonResponse({ error: concurrency.reason }, 429);
 
         // 计算积分并预扣用户积分
-        const creditsCost = getKlingCreditsCost(model_version, duration);
+        const creditsCost = getKlingCreditsCost(model_version, duration, generate_audio);
         const deductResult = await deductUserCreditsById(user_id, creditsCost);
         if (!deductResult.success) return jsonResponse({ error: deductResult.error }, 402);
 

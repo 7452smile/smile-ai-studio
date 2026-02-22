@@ -977,12 +977,13 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
             runwayDuration,
             klingModelVersion,
             klingDuration,
+            klingGenerateAudio,
             upscaleModel,
             imageWidth: upscaleImageDimensions?.width || 0,
             imageHeight: upscaleImageDimensions?.height || 0,
             scaleFactor,
         });
-    }, [activeMode, imageModel, videoModel, minimaxResolution, minimaxDuration, wanResolution, wanDuration, pixverseResolution, pixverseDuration, ltxResolution, ltxDuration, runwayDuration, klingModelVersion, klingDuration, upscaleModel, upscaleImageDimensions, magnificScaleFactor, precisionScaleFactor]);
+    }, [activeMode, imageModel, videoModel, minimaxResolution, minimaxDuration, wanResolution, wanDuration, pixverseResolution, pixverseDuration, ltxResolution, ltxDuration, runwayDuration, klingModelVersion, klingDuration, klingGenerateAudio, upscaleModel, upscaleImageDimensions, magnificScaleFactor, precisionScaleFactor]);
 
     const handleGenerate = useCallback(async () => {
         // 检查登录状态

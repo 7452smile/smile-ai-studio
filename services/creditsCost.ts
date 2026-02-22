@@ -82,8 +82,16 @@ export function getRunwayCreditsCost(duration: RunwayDuration): number {
 }
 
 
-export function getKlingCreditsCost(modelVersion: KlingModelVersion, duration: KlingDuration): number {
-    const rates: Record<string, number> = {
+export function getKlingCreditsCost(modelVersion: KlingModelVersion, duration: KlingDuration, generateAudio = true): number {
+    const audioRates: Record<string, number> = {
+        'kling-3-pro':          39,
+        'kling-3-std':          31,
+        'kling-3-omni-pro':     28,
+        'kling-3-omni-pro-v2v': 28,
+        'kling-3-omni-std':     22,
+        'kling-3-omni-std-v2v': 22,
+    };
+    const noAudioRates: Record<string, number> = {
         'kling-3-pro':          23,
         'kling-3-std':          17,
         'kling-3-omni-pro':     22,
@@ -91,7 +99,8 @@ export function getKlingCreditsCost(modelVersion: KlingModelVersion, duration: K
         'kling-3-omni-std':     17,
         'kling-3-omni-std-v2v': 17,
     };
-    return Math.round(duration * (rates[modelVersion] || 23));
+    const rates = generateAudio ? audioRates : noAudioRates;
+    return Math.round(duration * (rates[modelVersion] || (generateAudio ? 39 : 23)));
 }
 
 // ============================================================
@@ -134,6 +143,7 @@ export interface CreditsCostParams {
     runwayDuration?: RunwayDuration;
     klingModelVersion?: KlingModelVersion;
     klingDuration?: KlingDuration;
+    klingGenerateAudio?: boolean;
     // 放大
     upscaleModel?: UpscaleModelType;
     imageWidth?: number;
@@ -175,7 +185,7 @@ export function estimateCreditsCost(params: CreditsCostParams): number {
             case 'runway':
                 return getRunwayCreditsCost(params.runwayDuration || 5);
             case 'kling':
-                return getKlingCreditsCost(params.klingModelVersion || 'kling-3-pro', params.klingDuration || 5);
+                return getKlingCreditsCost(params.klingModelVersion || 'kling-3-pro', params.klingDuration || 5, params.klingGenerateAudio ?? true);
             default:
                 return 0;
         }
