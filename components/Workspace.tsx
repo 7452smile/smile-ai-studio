@@ -1,7 +1,7 @@
 import React, { useEffect, useState, memo, useCallback } from 'react';
 import { GeneratedItem, AppMode } from '../types';
-import { Download, Share2, X, Trash2, Play, Clock, Sparkles, RefreshCw } from 'lucide-react';
-
+import { Download, Share2, X, Trash2, Play, Clock, Sparkles, RefreshCw, CheckSquare, Square } from 'lucide-react';
+import { getDownloadUrl } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { useGeneration } from '../context/GenerationContext';
 
@@ -82,6 +82,8 @@ const Workspace: React.FC = memo(() => {
 
     const [historyTab, setHistoryTab] = useState<HistoryTab>('all');
     const [selectedItem, setSelectedItem] = useState<GeneratedItem | null>(null);
+    const [selectMode, setSelectMode] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
     // Auto-switch tab based on active mode
     useEffect(() => {
@@ -110,77 +112,26 @@ const Workspace: React.FC = memo(() => {
         try {
             addNotification(t('workspace:detail.download'), t('workspace:detail.downloadPreparing'), 'info');
 
-            // 通过 fetch 获取数据
-            const response = await fetch(url, {
-                mode: 'cors',
-                credentials: 'omit'
-            });
+            const ext = type === 'video' ? 'mp4' : 'png';
+            const filename = `smile-ai-${id}.${ext}`;
 
-            if (!response.ok) throw new Error('Download failed');
+            // 获取带 Content-Disposition: attachment 的 presigned URL
+            const downloadUrl = await getDownloadUrl(url, filename);
 
-            const blob = await response.blob();
-            const blobUrl = URL.createObjectURL(blob);
-
+            // 用 <a> 标签触发下载（presigned URL 自带 attachment 头，浏览器会直接下载）
             const link = document.createElement('a');
-            link.href = blobUrl;
-            link.download = `smile-ai-${id}.${type === 'video' ? 'mp4' : 'png'}`;
+            link.href = downloadUrl;
+            link.download = filename;
+            link.rel = 'noopener noreferrer';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
 
-            // 释放 Blob URL
-            URL.revokeObjectURL(blobUrl);
             addNotification(t('workspace:detail.downloadSuccess'), t('workspace:detail.downloadSuccess'), 'success');
         } catch (e) {
-            // 视频的备选方案：直接使用链接下载
-            if (type === 'video') {
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `smile-ai-${id}.mp4`;
-                link.target = '_blank';
-                link.rel = 'noopener noreferrer';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                addNotification(t('workspace:detail.download'), t('workspace:detail.downloadingVideo'), 'info');
-                return;
-            }
-
-            // 图片的备选方案：使用 img 元素 + canvas 方式
-            try {
-                const img = new Image();
-                img.crossOrigin = 'anonymous';
-
-                await new Promise<void>((resolve, reject) => {
-                    img.onload = () => resolve();
-                    img.onerror = () => reject(new Error('Image load failed'));
-                    img.src = url;
-                });
-
-                const canvas = document.createElement('canvas');
-                canvas.width = img.naturalWidth;
-                canvas.height = img.naturalHeight;
-                const ctx = canvas.getContext('2d');
-                ctx?.drawImage(img, 0, 0);
-
-                canvas.toBlob((blob) => {
-                    if (blob) {
-                        const blobUrl = URL.createObjectURL(blob);
-                        const link = document.createElement('a');
-                        link.href = blobUrl;
-                        link.download = `smile-ai-${id}.png`;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        URL.revokeObjectURL(blobUrl);
-                        addNotification(t('workspace:detail.downloadSuccess'), t('workspace:detail.downloadSuccess'), 'success');
-                    }
-                }, 'image/png');
-            } catch (canvasError) {
-                // 最后的备选方案：在新标签页打开
-                window.open(url, '_blank');
-                addNotification(t('workspace:detail.openInNewTab'), t('workspace:detail.openInNewTab'), 'info');
-            }
+            // 降级：新标签页打开
+            window.open(url, '_blank');
+            addNotification(t('workspace:detail.openInNewTab'), t('workspace:detail.openInNewTab'), 'info');
         }
     };
 
@@ -209,6 +160,50 @@ const Workspace: React.FC = memo(() => {
     const handleDelete = (id: string) => {
         deleteHistoryItems([id]);
         setSelectedItem(null);
+    };
+
+    const toggleSelect = (id: string) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
+
+    const handleBatchDelete = () => {
+        if (selectedIds.size === 0) return;
+        if (confirm(t('workspace:history.batchDeleteConfirm', { count: selectedIds.size }))) {
+            deleteHistoryItems([...selectedIds]);
+            setSelectedIds(new Set());
+            setSelectMode(false);
+        }
+    };
+
+    const handleBatchDownload = async () => {
+        if (selectedIds.size === 0) return;
+        const items = filteredHistory.filter(i => selectedIds.has(i.id));
+        addNotification(t('workspace:detail.download'), t('workspace:detail.downloadPreparing'), 'info');
+        for (const item of items) {
+            try {
+                const ext = item.type === 'video' ? 'mp4' : 'png';
+                const filename = `smile-ai-${item.id}.${ext}`;
+                const downloadUrl = await getDownloadUrl(item.url, filename);
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                link.download = filename;
+                link.rel = 'noopener noreferrer';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                await new Promise(r => setTimeout(r, 300));
+            } catch {}
+        }
+        addNotification(t('workspace:detail.downloadSuccess'), t('workspace:detail.downloadSuccess'), 'success');
+    };
+
+    const exitSelectMode = () => {
+        setSelectMode(false);
+        setSelectedIds(new Set());
     };
 
     const getModelLabel = (model: string) => {
@@ -264,9 +259,9 @@ const Workspace: React.FC = memo(() => {
                 {filteredHistory.map(item => (
                     <div
                         key={item.id}
-                        className="media-card aspect-square cursor-pointer group relative"
+                        className={`media-card aspect-square cursor-pointer group relative ${selectMode && selectedIds.has(item.id) ? 'ring-2 ring-accent' : ''}`}
                     >
-                        <div onClick={() => setSelectedItem(item)} className="w-full h-full">
+                        <div onClick={() => selectMode ? toggleSelect(item.id) : setSelectedItem(item)} className="w-full h-full">
                             {item.type === 'video' ? (
                                 <div className="w-full h-full bg-surface-overlay relative">
                                     <video
@@ -288,17 +283,28 @@ const Workspace: React.FC = memo(() => {
                                 />
                             )}
                         </div>
-                        {/* 快速删除按钮 */}
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                deleteHistoryItems([item.id]);
-                            }}
-                            className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 hover:bg-error/80 transition-all"
-                        >
-                            <X className="w-3.5 h-3.5" />
-                        </button>
-                        <div className="media-card-overlay" onClick={() => setSelectedItem(item)}>
+                        {/* 选择模式复选框 */}
+                        {selectMode && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); toggleSelect(item.id); }}
+                                className="absolute top-2 left-2 p-0.5 rounded bg-black/60 text-white z-10"
+                            >
+                                {selectedIds.has(item.id) ? <CheckSquare className="w-5 h-5 text-accent" /> : <Square className="w-5 h-5" />}
+                            </button>
+                        )}
+                        {/* 快速删除按钮（非选择模式） */}
+                        {!selectMode && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteHistoryItems([item.id]);
+                                }}
+                                className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 hover:bg-error/80 transition-all"
+                            >
+                                <X className="w-3.5 h-3.5" />
+                            </button>
+                        )}
+                        <div className="media-card-overlay" onClick={() => selectMode ? toggleSelect(item.id) : setSelectedItem(item)}>
                             <div className="absolute bottom-0 left-0 right-0 p-3">
                                 <p className="text-xs text-white line-clamp-2 mb-1">{item.prompt}</p>
                                 <div className="flex items-center justify-between">
@@ -381,18 +387,50 @@ const Workspace: React.FC = memo(() => {
                         <TabButton isActive={historyTab === 'upscale'} onClick={() => handleTabClick('upscale')} label={t('workspace:tabs.upscale')} />
                     </div>
                     <div className="flex items-center space-x-3">
-                        <span className="text-xs text-content-muted">{t('workspace:history.items', { count: filteredHistory.length })}</span>
-                        {filteredHistory.length > 0 && (
-                            <button
-                                onClick={() => {
-                                    if (confirm(t('workspace:history.clearConfirm'))) {
-                                        deleteHistoryItems(filteredHistory.map(item => item.id));
-                                    }
-                                }}
-                                className="text-xs text-content-muted hover:text-error transition-colors"
-                            >
-                                {t('workspace:history.clear')}
-                            </button>
+                        {selectMode ? (
+                            <>
+                                <button
+                                    onClick={() => {
+                                        if (selectedIds.size === filteredHistory.length) setSelectedIds(new Set());
+                                        else setSelectedIds(new Set(filteredHistory.map(i => i.id)));
+                                    }}
+                                    className="text-xs text-accent hover:text-accent/80 transition-colors"
+                                >
+                                    {t('workspace:history.selectAll')}
+                                </button>
+                                <button onClick={handleBatchDownload} disabled={selectedIds.size === 0}
+                                    className="text-xs text-content-secondary hover:text-accent transition-colors disabled:opacity-40">
+                                    {t('workspace:history.batchDownload', { count: selectedIds.size })}
+                                </button>
+                                <button onClick={handleBatchDelete} disabled={selectedIds.size === 0}
+                                    className="text-xs text-content-secondary hover:text-error transition-colors disabled:opacity-40">
+                                    {t('workspace:history.batchDelete', { count: selectedIds.size })}
+                                </button>
+                                <button onClick={exitSelectMode} className="text-xs text-content-muted hover:text-content transition-colors">
+                                    {t('workspace:history.cancelSelect')}
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <span className="text-xs text-content-muted">{t('workspace:history.items', { count: filteredHistory.length })}</span>
+                                {filteredHistory.length > 0 && (
+                                    <>
+                                        <button onClick={() => setSelectMode(true)} className="text-xs text-content-muted hover:text-accent transition-colors">
+                                            {t('workspace:history.select')}
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                if (confirm(t('workspace:history.clearConfirm'))) {
+                                                    deleteHistoryItems(filteredHistory.map(item => item.id));
+                                                }
+                                            }}
+                                            className="text-xs text-content-muted hover:text-error transition-colors"
+                                        >
+                                            {t('workspace:history.clear')}
+                                        </button>
+                                    </>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>
@@ -416,7 +454,7 @@ const Workspace: React.FC = memo(() => {
                                             ? t('common:timeUnits.months', { count: Math.round(userSubscription.historyHours / 720) })
                                             : t('common:timeUnits.years', { count: 1 })}
                         </span>
-                        {userSubscription && userSubscription.historyHours <= 1 && (
+                        {userSubscription && userSubscription.historyHours <= 24 && (
                             <span className="text-amber-500 ml-1">· {t('workspace:history.retentionUpgrade')}</span>
                         )}
                     </span>

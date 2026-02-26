@@ -92,7 +92,7 @@ serve(async (req) => {
 
                 let query = supabase
                     .from("user_profiles")
-                    .select("id, phone, email, nickname, credits, subscription_tier, created_at", { count: "exact" })
+                    .select("id, phone, email, nickname, credits, subscription_tier, created_at, last_daily_credit_at", { count: "exact" })
                     .order("created_at", { ascending: false })
                     .range(from, to);
 
@@ -119,14 +119,38 @@ serve(async (req) => {
                 const lookupId = profileRes.data?.id;
                 const lookupPhone = profileRes.data?.phone;
 
-                const [tasksRes, ordersRes] = await Promise.all([
+                const [tasksRes, ordersRes, allTasksRes, redemptionRes] = await Promise.all([
                     lookupId
                         ? supabase.from("generation_tasks").select("*").eq("user_id", lookupId).order("created_at", { ascending: false }).limit(50)
                         : supabase.from("generation_tasks").select("*").eq("user_phone", lookupPhone).order("created_at", { ascending: false }).limit(50),
                     lookupPhone
                         ? supabase.from("payment_orders").select("*").eq("user_phone", lookupPhone).order("created_at", { ascending: false }).limit(50)
                         : { data: [] },
+                    // 全量任务用于按模型聚合
+                    lookupId
+                        ? supabase.from("generation_tasks").select("model, credits_cost, status, created_at").eq("user_id", lookupId).eq("status", "completed")
+                        : supabase.from("generation_tasks").select("model, credits_cost, status, created_at").eq("user_phone", lookupPhone).eq("status", "completed"),
+                    // 兑换记录聚合
+                    lookupId
+                        ? supabase.from("redemption_records").select("credits_amount").eq("user_id", lookupId)
+                        : { data: [] },
                 ]);
+
+                // 按模型聚合积分消耗
+                const creditsByModel: Record<string, number> = {};
+                let totalConsumed = 0;
+                for (const t of (allTasksRes.data || [])) {
+                    const m = t.model || 'unknown';
+                    creditsByModel[m] = (creditsByModel[m] || 0) + (t.credits_cost || 0);
+                    totalConsumed += (t.credits_cost || 0);
+                }
+
+                const totalRecharged = (redemptionRes as any).data?.reduce((s: number, r: any) => s + (r.credits_amount || 0), 0) || 0;
+                const totalPaid = ((ordersRes as any).data || []).filter((o: any) => o.status === 'paid').reduce((s: number, o: any) => s + Number(o.amount || 0), 0);
+
+                // 最后活跃时间：最近一条任务
+                const lastTask = (tasksRes.data || [])[0];
+                const lastActiveAt = lastTask?.created_at || null;
 
                 return jsonResponse({
                     success: true,
@@ -134,24 +158,31 @@ serve(async (req) => {
                         profile: profileRes.data,
                         tasks: tasksRes.data || [],
                         orders: (ordersRes as any).data || [],
+                        credits_by_model: creditsByModel,
+                        total_consumed: totalConsumed,
+                        total_recharged: totalRecharged,
+                        total_paid: totalPaid,
+                        last_active_at: lastActiveAt,
                     }
                 });
             }
 
             // ==================== 订单列表 ====================
             case "orders": {
-                const { page = 1, page_size = 20, status = "", search = "" } = params;
+                const { page = 1, page_size = 20, status = "", search = "", date_from = "", date_to = "", sort_by = "created_at", sort_order = "desc" } = params;
                 const from = (page - 1) * page_size;
                 const to = from + page_size - 1;
 
                 let query = supabase
                     .from("payment_orders")
                     .select("*", { count: "exact" })
-                    .order("created_at", { ascending: false })
+                    .order(sort_by, { ascending: sort_order === "asc" })
                     .range(from, to);
 
                 if (status) query = query.eq("status", status);
                 if (search) query = query.or(`out_trade_no.like.%${search}%,user_phone.like.%${search}%`);
+                if (date_from) query = query.gte("created_at", date_from);
+                if (date_to) query = query.lte("created_at", date_to + "T23:59:59");
 
                 const { data, count, error } = await query;
                 if (error) return jsonResponse({ success: false, error: error.message }, 500);
@@ -182,7 +213,7 @@ serve(async (req) => {
 
             // ==================== 任务列表 ====================
             case "tasks": {
-                const { page = 1, page_size = 20, status = "", model = "", task_type = "" } = params;
+                const { page = 1, page_size = 20, status = "", model = "", task_type = "", date_from = "", date_to = "" } = params;
                 const from = (page - 1) * page_size;
                 const to = from + page_size - 1;
 
@@ -195,19 +226,27 @@ serve(async (req) => {
                 if (status) query = query.eq("status", status);
                 if (model) query = query.like("model", `${model}%`);
                 if (task_type) query = query.eq("task_type", task_type);
+                if (date_from) query = query.gte("created_at", date_from);
+                if (date_to) query = query.lte("created_at", date_to + "T23:59:59");
 
                 const { data, count, error } = await query;
                 if (error) return jsonResponse({ success: false, error: error.message }, 500);
 
-                // 附加 nickname
+                // 附加 nickname + api_key
                 const tasks = data || [];
                 const uids = [...new Set(tasks.map((t: any) => t.user_id).filter(Boolean))];
+                const akIds = [...new Set(tasks.map((t: any) => t.api_key_id).filter(Boolean))];
                 let nMap: Record<string, string> = {};
+                let akMap: Record<string, string> = {};
                 if (uids.length > 0) {
                     const { data: profiles } = await supabase.from("user_profiles").select("id, nickname").in("id", uids);
                     for (const p of (profiles || [])) nMap[p.id] = p.nickname;
                 }
-                const enriched = tasks.map((t: any) => ({ ...t, nickname: nMap[t.user_id] || t.user_phone || t.user_id?.slice(0, 8) }));
+                if (akIds.length > 0) {
+                    const { data: keys } = await supabase.from("freepik_api_keys").select("id, api_key").in("id", akIds);
+                    for (const k of (keys || [])) akMap[k.id] = k.api_key;
+                }
+                const enriched = tasks.map((t: any) => ({ ...t, nickname: nMap[t.user_id] || t.user_phone || t.user_id?.slice(0, 8), api_key: akMap[t.api_key_id] || null }));
 
                 return jsonResponse({ success: true, data: enriched, total: count || 0 });
             }
@@ -338,6 +377,61 @@ serve(async (req) => {
                     data,
                     total: count || 0,
                 });
+            }
+
+            // ==================== 任务模型统计 ====================
+            case "task_stats": {
+                const { date_from = "", date_to = "" } = params;
+                let query = supabase.from("generation_tasks").select("model, status, credits_cost");
+                if (date_from) query = query.gte("created_at", date_from);
+                if (date_to) query = query.lte("created_at", date_to + "T23:59:59");
+
+                const { data, error } = await query;
+                if (error) return jsonResponse({ success: false, error: error.message }, 500);
+
+                const stats: Record<string, { count: number; credits: number; completed: number; failed: number; failed_credits: number }> = {};
+                for (const t of (data || [])) {
+                    const m = t.model || 'unknown';
+                    if (!stats[m]) stats[m] = { count: 0, credits: 0, completed: 0, failed: 0, failed_credits: 0 };
+                    stats[m].count++;
+                    stats[m].credits += (t.credits_cost || 0);
+                    if (t.status === 'completed') stats[m].completed++;
+                    if (t.status === 'failed') { stats[m].failed++; stats[m].failed_credits += (t.credits_cost || 0); }
+                }
+                return jsonResponse({ success: true, data: stats });
+            }
+
+            // ==================== 操作日志 ====================
+            case "audit_log": {
+                const { page = 1, page_size = 20, action_type = "" } = params;
+                const from = (page - 1) * page_size;
+                const to = from + page_size - 1;
+
+                let query = supabase.from("admin_audit_log").select("*", { count: "exact" }).order("created_at", { ascending: false }).range(from, to);
+                if (action_type) query = query.eq("action_type", action_type);
+
+                const { data, count, error } = await query;
+                if (error) return jsonResponse({ success: false, error: error.message }, 500);
+                return jsonResponse({ success: true, data, total: count || 0 });
+            }
+
+            // ==================== 兑换记录查询 ====================
+            case "redemption_records": {
+                const { code_id } = params;
+                if (!code_id) return jsonResponse({ success: false, error: "缺少 code_id" }, 400);
+
+                const { data, error } = await supabase.from("redemption_records").select("*").eq("code_id", code_id).order("created_at", { ascending: false });
+                if (error) return jsonResponse({ success: false, error: error.message }, 500);
+
+                // 附加 nickname
+                const userIds = [...new Set((data || []).map((r: any) => r.user_id).filter(Boolean))];
+                let nMap: Record<string, string> = {};
+                if (userIds.length > 0) {
+                    const { data: profiles } = await supabase.from("user_profiles").select("id, nickname").in("id", userIds);
+                    for (const p of (profiles || [])) nMap[p.id] = p.nickname;
+                }
+                const enriched = (data || []).map((r: any) => ({ ...r, nickname: nMap[r.user_id] || r.user_id?.slice(0, 8) }));
+                return jsonResponse({ success: true, data: enriched });
             }
 
             default:

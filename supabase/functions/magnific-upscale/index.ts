@@ -132,7 +132,8 @@ serve(async (req) => {
 
         // 计算积分并预扣用户积分
         const creditsCost = getUpscaleCreditsCost(finalWidth, finalHeight);
-        const deductResult = await deductUserCreditsById(user_id, creditsCost);
+        const modelDesc = mode === 'creative' ? 'Magnific Creative' : 'Magnific Precision';
+        const deductResult = await deductUserCreditsById(user_id, creditsCost, modelDesc);
         if (!deductResult.success) return jsonResponse({ error: deductResult.error }, 402);
 
         console.log("[magnific-upscale] Calling Freepik API:", endpoint);
@@ -145,13 +146,13 @@ serve(async (req) => {
         }));
 
         if (!result.success) {
-            await refundUserCreditsById(user_id, creditsCost);
+            await refundUserCreditsById(user_id, creditsCost, undefined, modelDesc);
             return jsonResponse({ error: result.error }, 500);
         }
 
         const freepikTaskId = result.data?.data?.task_id;
         if (!freepikTaskId) {
-            await refundUserCreditsById(user_id, creditsCost);
+            await refundUserCreditsById(user_id, creditsCost, undefined, modelDesc);
             return jsonResponse({ error: "未获取到任务 ID" }, 500);
         }
 

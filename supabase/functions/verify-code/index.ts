@@ -60,15 +60,6 @@ serve(async (req) => {
     if (existingProfile) {
       userId = existingProfile.id;
 
-      // 每日登录积分
-      try {
-        const { data: dailyResult } = await supabase.rpc("grant_daily_credits_v2", { p_user_id: userId });
-        if (dailyResult?.success) {
-          console.log(`[verify-code] Daily credits granted to ${identifier}: +${dailyResult.granted}`);
-        }
-      } catch (e) {
-        console.error("[verify-code] grant_daily_credits_v2 error:", e);
-      }
     } else {
       // 新用户，创建 auth 用户
       const authEmail = isEmailLogin ? email : `${phone}@phone.local`;

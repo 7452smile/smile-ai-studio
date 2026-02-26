@@ -49,6 +49,7 @@ serve(async (req) => {
             has_end_image: !!body.end_image,
             has_reference_video: !!body.reference_video,
             has_elements: !!body.elements?.length,
+            has_image_urls: !!body.image_urls?.length,
             has_multi_prompt: !!body.multi_prompt?.length
         }));
 
@@ -66,7 +67,9 @@ serve(async (req) => {
             end_image,
             reference_video,
             multi_prompt,
-            generate_audio = true
+            generate_audio = true,
+            elements,
+            image_urls
         } = body;
 
         const user_id = await getAuthenticatedUserId(req, bodyUserId);
@@ -182,6 +185,17 @@ serve(async (req) => {
             requestBody.video_url = reference_video;
         }
 
+        // elements: Pro/Std/Omni Pro/Omni Std 支持（V2V 不支持）
+        if (elements?.length && !isV2V) {
+            requestBody.elements = elements;
+        }
+
+        // image_urls: 仅 Omni Pro/Omni Std 支持
+        const isOmni = ['kling-3-omni-pro', 'kling-3-omni-std'].includes(model_version);
+        if (image_urls?.length && isOmni) {
+            requestBody.image_urls = image_urls;
+        }
+
         // 添加 webhook URL
         if (WEBHOOK_BASE_URL) {
             requestBody.webhook_url = `${WEBHOOK_BASE_URL}/freepik-webhook`;
@@ -196,7 +210,7 @@ serve(async (req) => {
 
         // 计算积分并预扣用户积分
         const creditsCost = getKlingCreditsCost(model_version, duration, generate_audio);
-        const deductResult = await deductUserCreditsById(user_id, creditsCost);
+        const deductResult = await deductUserCreditsById(user_id, creditsCost, `Kling ${model_version}`);
         if (!deductResult.success) return jsonResponse({ error: deductResult.error }, 402);
 
         console.log("[kling-video] Calling Freepik API:", endpoint);
@@ -209,13 +223,13 @@ serve(async (req) => {
         }));
 
         if (!result.success) {
-            await refundUserCreditsById(user_id, creditsCost);
+            await refundUserCreditsById(user_id, creditsCost, undefined, `Kling ${model_version}`);
             return jsonResponse({ error: result.error }, 500);
         }
 
         const freepikTaskId = result.data?.data?.task_id;
         if (!freepikTaskId) {
-            await refundUserCreditsById(user_id, creditsCost);
+            await refundUserCreditsById(user_id, creditsCost, undefined, `Kling ${model_version}`);
             return jsonResponse({ error: "未获取到任务 ID" }, 500);
         }
 

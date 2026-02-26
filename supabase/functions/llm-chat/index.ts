@@ -101,7 +101,7 @@ serve(async (req) => {
     // ========== 流式模式 ==========
     if (stream) {
       // 先预扣积分
-      const deductResult = await deductUserCreditsById(userId, MAX_PRE_DEDUCT);
+      const deductResult = await deductUserCreditsById(userId, MAX_PRE_DEDUCT, `LLM ${model}`);
       if (!deductResult.success) {
         return jsonResponse({ success: false, error: deductResult.error }, 402);
       }
@@ -116,7 +116,7 @@ serve(async (req) => {
       });
 
       if (!apiResp.ok) {
-        await refundUserCreditsById(userId, MAX_PRE_DEDUCT);
+        await refundUserCreditsById(userId, MAX_PRE_DEDUCT, undefined, `LLM ${model}`);
         const errText = await apiResp.text();
         console.error("[llm-chat] stream API error:", apiResp.status, errText);
         return jsonResponse({ success: false, error: `LLM API 错误: ${apiResp.status}` }, 502);
@@ -163,10 +163,10 @@ serve(async (req) => {
               const actual = calculateCredits(model, usageData.prompt_tokens, usageData.completion_tokens);
               const refund = MAX_PRE_DEDUCT - actual;
               if (refund > 0) {
-                await refundUserCreditsById(userId, refund);
+                await refundUserCreditsById(userId, refund, undefined, `LLM ${model}`);
               } else if (refund < 0) {
                 // 实际超出预扣，补扣差额
-                await deductUserCreditsById(userId, -refund);
+                await deductUserCreditsById(userId, -refund, `LLM ${model}`);
               }
               // 记录任务
               await supabase.from("generation_tasks").insert({
@@ -185,7 +185,7 @@ serve(async (req) => {
               console.log(`[llm-chat] stream done: model=${model} in=${usageData.prompt_tokens} out=${usageData.completion_tokens} credits=${actual}`);
             } else {
               // 没拿到 usage，扣最低 1 积分，退剩余
-              await refundUserCreditsById(userId, MAX_PRE_DEDUCT - 1);
+              await refundUserCreditsById(userId, MAX_PRE_DEDUCT - 1, undefined, `LLM ${model}`);
               console.warn("[llm-chat] stream ended without usage data");
             }
           }
@@ -205,7 +205,7 @@ serve(async (req) => {
 
     // ========== 非流式模式 ==========
     // 先预扣积分
-    const deductResult = await deductUserCreditsById(userId, MAX_PRE_DEDUCT);
+    const deductResult = await deductUserCreditsById(userId, MAX_PRE_DEDUCT, `LLM ${model}`);
     if (!deductResult.success) {
       return jsonResponse({ success: false, error: deductResult.error }, 402);
     }
@@ -220,7 +220,7 @@ serve(async (req) => {
     });
 
     if (!apiResp.ok) {
-      await refundUserCreditsById(userId, MAX_PRE_DEDUCT);
+      await refundUserCreditsById(userId, MAX_PRE_DEDUCT, undefined, `LLM ${model}`);
       const errText = await apiResp.text();
       console.error("[llm-chat] API error:", apiResp.status, errText);
       return jsonResponse({ success: false, error: `LLM API 错误: ${apiResp.status}` }, 502);
@@ -235,9 +235,9 @@ serve(async (req) => {
     const actualCredits = calculateCredits(model, inputTokens, outputTokens);
     const refund = MAX_PRE_DEDUCT - actualCredits;
     if (refund > 0) {
-      await refundUserCreditsById(userId, refund);
+      await refundUserCreditsById(userId, refund, undefined, `LLM ${model}`);
     } else if (refund < 0) {
-      await deductUserCreditsById(userId, -refund);
+      await deductUserCreditsById(userId, -refund, `LLM ${model}`);
     }
 
     // 记录任务

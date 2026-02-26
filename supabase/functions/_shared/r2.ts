@@ -153,6 +153,59 @@ export async function generatePresignedPutUrl(key: string, contentType: string, 
 }
 
 /**
+ * 生成 Presigned GET URL（带 Content-Disposition: attachment 强制下载）
+ */
+export async function generatePresignedGetUrl(key: string, filename: string, expiresIn = 600): Promise<string> {
+    if (!R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_ENDPOINT || !R2_BUCKET) {
+        throw new Error("R2 configuration incomplete");
+    }
+
+    const now = new Date();
+    const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
+    const dateStamp = amzDate.slice(0, 8);
+    const region = "auto";
+    const service = "s3";
+    const host = getHost();
+    const path = `/${R2_BUCKET}/${key}`;
+
+    const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+    const credential = `${R2_ACCESS_KEY_ID}/${credentialScope}`;
+
+    const disposition = encodeURIComponent(`attachment; filename="${filename}"`);
+    const queryParams = [
+        `X-Amz-Algorithm=AWS4-HMAC-SHA256`,
+        `X-Amz-Credential=${encodeURIComponent(credential)}`,
+        `X-Amz-Date=${amzDate}`,
+        `X-Amz-Expires=${expiresIn}`,
+        `X-Amz-SignedHeaders=host`,
+        `response-content-disposition=${disposition}`,
+    ].join("&");
+
+    const canonicalHeaders = `host:${host}\n`;
+    const canonicalRequest = [
+        "GET",
+        path,
+        queryParams,
+        canonicalHeaders,
+        "host",
+        "UNSIGNED-PAYLOAD"
+    ].join("\n");
+
+    const canonicalRequestHash = await sha256(new TextEncoder().encode(canonicalRequest));
+    const stringToSign = ["AWS4-HMAC-SHA256", amzDate, credentialScope, canonicalRequestHash].join("\n");
+
+    const kDate = await hmacSha256(new TextEncoder().encode("AWS4" + R2_SECRET_ACCESS_KEY), dateStamp);
+    const kRegion = await hmacSha256(kDate, region);
+    const kService = await hmacSha256(kRegion, service);
+    const kSigning = await hmacSha256(kService, "aws4_request");
+
+    const signatureBuffer = await hmacSha256(kSigning, stringToSign);
+    const signature = Array.from(new Uint8Array(signatureBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
+
+    return `${R2_ENDPOINT.replace(/\/$/, "")}${path}?${queryParams}&X-Amz-Signature=${signature}`;
+}
+
+/**
  * 上传图片到 R2
  */
 export async function uploadImageToR2(base64Data: string, filename: string): Promise<string> {
@@ -243,7 +296,7 @@ export async function ensureImageUrl(imageData: string, filename: string): Promi
     return await uploadImageToR2(imageData, filename);
 }
 
-export async function downloadAndUploadToR2(sourceUrl: string, filename: string): Promise<string> {
+export async function downloadAndUploadToR2(sourceUrl: string, filename: string, prefix = "results"): Promise<string> {
     // 验证环境变量
     if (!R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_ENDPOINT || !R2_BUCKET || !R2_PUBLIC_URL) {
         throw new Error("R2 configuration incomplete");
@@ -255,12 +308,40 @@ export async function downloadAndUploadToR2(sourceUrl: string, filename: string)
     }
 
     const contentType = response.headers.get("content-type") || "image/png";
-    const arrayBuffer = await response.arrayBuffer();
-    const binaryData = new Uint8Array(arrayBuffer);
+    const contentLength = response.headers.get("content-length");
+    const fileSizeMB = contentLength ? parseInt(contentLength) / (1024 * 1024) : 0;
 
     const ext = contentType.includes("jpeg") ? "jpg" : contentType.includes("webp") ? "webp" : "png";
-    const key = `results/${Date.now()}_${filename}.${ext}`;
+    const key = `${prefix}/${Date.now()}_${filename}.${ext}`;
     const path = `/${R2_BUCKET}/${key}`;
+
+    // 大文件(>30MB)使用 presigned URL + 流式上传，避免内存溢出和 SHA-256 计算
+    if (fileSizeMB > 30) {
+        console.log(`[r2] Large file detected (${fileSizeMB.toFixed(1)}MB), using presigned URL upload`);
+        const presignedUrl = await generatePresignedPutUrl(key, contentType, 900);
+
+        const uploadHeaders: Record<string, string> = { "Content-Type": contentType };
+        if (contentLength) {
+            uploadHeaders["Content-Length"] = contentLength;
+        }
+
+        const uploadResponse = await fetch(presignedUrl, {
+            method: "PUT",
+            headers: uploadHeaders,
+            body: response.body, // 流式传输，不读入内存
+        });
+
+        if (!uploadResponse.ok) {
+            const errText = await uploadResponse.text().catch(() => "");
+            throw new Error(`R2 presigned upload failed: ${uploadResponse.status} ${errText}`);
+        }
+
+        return `${R2_PUBLIC_URL}/${key}`;
+    }
+
+    // 小文件走原有逻辑（签名上传）
+    const arrayBuffer = await response.arrayBuffer();
+    const binaryData = new Uint8Array(arrayBuffer);
 
     const headers = await signRequest("PUT", path, { "Content-Type": contentType }, binaryData);
     const uploadUrl = `${R2_ENDPOINT.replace(/\/$/, "")}${path}`;

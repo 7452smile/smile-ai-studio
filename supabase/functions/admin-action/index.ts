@@ -44,6 +44,19 @@ serve(async (req) => {
 
         const supabase = getSupabase();
 
+        const logAudit = async (actionType: string, targetUser: string | null, params: any, success: boolean, message?: string) => {
+            try {
+                await supabase.from("admin_audit_log").insert({
+                    admin_id: admin_phone || "unknown",
+                    action_type: actionType,
+                    target_user: targetUser,
+                    params,
+                    result_success: success,
+                    result_message: message || null,
+                });
+            } catch {}
+        };
+
         switch (action_type) {
             // ==================== 调整积分 ====================
             case "adjust_credits": {
@@ -78,21 +91,25 @@ serve(async (req) => {
                 }
 
                 if (numAmount > 0) {
-                    // 加积分：用 refund_user_credits_v2
                     const { data, error } = await supabase.rpc("refund_user_credits_v2", {
                         p_user_id: profile.id,
                         p_amount: numAmount,
+                        p_tx_type: "admin_adjust",
+                        p_description: `管理员调整 +${numAmount}`,
                     });
-                    if (error) return jsonResponse({ success: false, error: error.message }, 500);
+                    if (error) { await logAudit("adjust_credits", phone, params, false, error.message); return jsonResponse({ success: false, error: error.message }, 500); }
+                    await logAudit("adjust_credits", phone, params, true);
                     return jsonResponse({ success: true, remaining: data });
                 } else {
-                    // 扣积分：用 deduct_user_credits_v2
                     const { data, error } = await supabase.rpc("deduct_user_credits_v2", {
                         p_user_id: profile.id,
                         p_amount: Math.abs(numAmount),
+                        p_tx_type: "admin_adjust",
+                        p_description: `管理员调整 ${numAmount}`,
                     });
-                    if (error) return jsonResponse({ success: false, error: error.message }, 500);
-                    if (data === -1) return jsonResponse({ success: false, error: "积分不足" }, 400);
+                    if (error) { await logAudit("adjust_credits", phone, params, false, error.message); return jsonResponse({ success: false, error: error.message }, 500); }
+                    if (data === -1) { await logAudit("adjust_credits", phone, params, false, "积分不足"); return jsonResponse({ success: false, error: "积分不足" }, 400); }
+                    await logAudit("adjust_credits", phone, params, true);
                     return jsonResponse({ success: true, remaining: data });
                 }
             }
@@ -125,7 +142,8 @@ serve(async (req) => {
                     .update({ subscription_tier: tier_id })
                     .eq("id", targetId);
 
-                if (error) return jsonResponse({ success: false, error: error.message }, 500);
+                if (error) { await logAudit("change_tier", phone, params, false, error.message); return jsonResponse({ success: false, error: error.message }, 500); }
+                await logAudit("change_tier", phone, params, true);
                 return jsonResponse({ success: true });
             }
 
@@ -157,17 +175,33 @@ serve(async (req) => {
                     .eq("out_trade_no", out_trade_no);
 
                 // 激活订阅
-                const { error: activateErr } = await supabase.rpc("activate_subscription", {
-                    p_phone: order.user_phone,
+                // 查出 user_id
+                let markUserId: string | null = null;
+                if (order.user_phone) {
+                    const { data: pu } = await supabase.from("user_profiles").select("id").eq("phone", order.user_phone).single();
+                    if (pu) markUserId = pu.id;
+                }
+                if (!markUserId && order.user_email) {
+                    const { data: eu } = await supabase.from("user_profiles").select("id").eq("email", order.user_email).single();
+                    if (eu) markUserId = eu.id;
+                }
+                if (!markUserId) {
+                    await logAudit("mark_order_paid", out_trade_no, params, false, "找不到用户");
+                    return jsonResponse({ success: false, error: "找不到对应用户" }, 404);
+                }
+
+                const { error: activateErr } = await supabase.rpc("activate_subscription_v2", {
+                    p_user_id: markUserId,
                     p_tier_id: order.tier_id,
                     p_billing_cycle: order.billing_cycle,
-                    p_out_trade_no: out_trade_no,
                 });
 
                 if (activateErr) {
+                    await logAudit("mark_order_paid", out_trade_no, params, false, activateErr.message);
                     return jsonResponse({ success: false, error: "订阅激活失败: " + activateErr.message }, 500);
                 }
 
+                await logAudit("mark_order_paid", order.user_phone, params, true);
                 return jsonResponse({ success: true });
             }
 
@@ -190,8 +224,26 @@ serve(async (req) => {
                     .update(updateData)
                     .eq("id", key_id);
 
-                if (error) return jsonResponse({ success: false, error: error.message }, 500);
+                if (error) { await logAudit("toggle_api_key", key_id, params, false, error.message); return jsonResponse({ success: false, error: error.message }, 500); }
+                await logAudit("toggle_api_key", key_id, params, true);
                 return jsonResponse({ success: true });
+            }
+
+            // ==================== 批量添加 API Key ====================
+            case "batch_add_api_keys": {
+                const { keys, remaining_credits } = params;
+                if (!keys || !Array.isArray(keys) || keys.length === 0) {
+                    return jsonResponse({ success: false, error: "缺少 keys 数组" }, 400);
+                }
+                const rows = keys.filter((k: string) => k.trim()).map((k: string) => ({
+                    api_key: k.trim(),
+                    remaining_credits: remaining_credits != null ? Number(remaining_credits) : null,
+                    is_active: true,
+                }));
+                const { error } = await supabase.from("freepik_api_keys").insert(rows);
+                if (error) { await logAudit("batch_add_api_keys", null, { count: rows.length }, false, error.message); return jsonResponse({ success: false, error: error.message }, 500); }
+                await logAudit("batch_add_api_keys", null, { count: rows.length }, true);
+                return jsonResponse({ success: true, count: rows.length });
             }
 
             // ==================== 创建兑换码 ====================
@@ -232,10 +284,13 @@ serve(async (req) => {
 
                 if (error) {
                     if (error.code === "23505") {
+                        await logAudit("create_redemption_code", null, params, false, "兑换码已存在");
                         return jsonResponse({ success: false, error: "兑换码已存在" }, 400);
                     }
+                    await logAudit("create_redemption_code", null, params, false, error.message);
                     return jsonResponse({ success: false, error: error.message }, 500);
                 }
+                await logAudit("create_redemption_code", null, params, true);
                 return jsonResponse({ success: true, data });
             }
 
@@ -287,7 +342,8 @@ serve(async (req) => {
                     .insert(rows)
                     .select("code");
 
-                if (error) return jsonResponse({ success: false, error: error.message }, 500);
+                if (error) { await logAudit("batch_create_redemption_codes", null, params, false, error.message); return jsonResponse({ success: false, error: error.message }, 500); }
+                await logAudit("batch_create_redemption_codes", null, params, true);
                 return jsonResponse({ success: true, codes: (data || []).map((d: any) => d.code), count: (data || []).length });
             }
 
@@ -303,8 +359,35 @@ serve(async (req) => {
                     .update({ is_active: !!is_active })
                     .eq("id", code_id);
 
-                if (error) return jsonResponse({ success: false, error: error.message }, 500);
+                if (error) { await logAudit("disable_redemption_code", code_id, params, false, error.message); return jsonResponse({ success: false, error: error.message }, 500); }
+                await logAudit("disable_redemption_code", code_id, params, true);
                 return jsonResponse({ success: true });
+            }
+
+            // ==================== 批量禁用已用完的兑换码 ====================
+            case "batch_disable_used_codes": {
+                const { data: usedCodes, error: findErr } = await supabase
+                    .from("redemption_codes")
+                    .select("id")
+                    .eq("is_active", true)
+                    .filter("current_uses", "gte", "max_uses");
+
+                if (findErr) { await logAudit("batch_disable_used_codes", null, {}, false, findErr.message); return jsonResponse({ success: false, error: findErr.message }, 500); }
+
+                const ids = (usedCodes || []).map((c: any) => c.id);
+                if (ids.length === 0) {
+                    await logAudit("batch_disable_used_codes", null, {}, true, "无需禁用");
+                    return jsonResponse({ success: true, affected: 0 });
+                }
+
+                const { error } = await supabase
+                    .from("redemption_codes")
+                    .update({ is_active: false })
+                    .in("id", ids);
+
+                if (error) { await logAudit("batch_disable_used_codes", null, {}, false, error.message); return jsonResponse({ success: false, error: error.message }, 500); }
+                await logAudit("batch_disable_used_codes", null, { affected: ids.length }, true);
+                return jsonResponse({ success: true, affected: ids.length });
             }
 
             default:

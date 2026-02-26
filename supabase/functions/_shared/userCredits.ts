@@ -13,13 +13,17 @@ function getSupabase() {
  */
 export async function deductUserCreditsById(
     userId: string,
-    amount: number
+    amount: number,
+    description?: string,
+    referenceId?: string
 ): Promise<{ success: boolean; remaining?: number; error?: string }> {
     const supabase = getSupabase();
 
     const { data, error } = await supabase.rpc("deduct_user_credits_v2", {
         p_user_id: userId,
         p_amount: amount,
+        ...(referenceId && { p_reference_id: referenceId }),
+        ...(description && { p_description: description }),
     });
 
     if (error) {
@@ -41,13 +45,15 @@ export async function deductUserCreditsById(
 export async function refundUserCreditsById(
     userId: string,
     amount: number,
-    taskId?: string
+    taskId?: string,
+    description?: string
 ): Promise<{ success: boolean; remaining?: number }> {
     const supabase = getSupabase();
 
     const { data, error } = await supabase.rpc("refund_user_credits_v2", {
         p_user_id: userId,
         p_amount: amount,
+        ...(description && { p_description: description }),
     });
 
     if (error) {

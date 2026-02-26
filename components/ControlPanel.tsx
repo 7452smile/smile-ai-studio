@@ -1,5 +1,5 @@
 import React, { useRef, useState, useCallback, memo, useMemo, useEffect } from 'react';
-import { AppMode, AspectRatio, GenerationStatus, MinimaxResolution, MinimaxDuration, MinimaxModelVersion, WanModelVersion, WanResolution, WanDuration, WanSize720p, WanSize1080p, WanShotType, PixVerseMode, PixVerseResolution, PixVerseDuration, PixVerseStyle, LtxResolution, LtxDuration, LtxFps, RunwayModelVersion, RunwayRatio, RunwayDuration, KlingModelVersion, KlingAspectRatio, KlingDuration, KlingShotType, KlingMultiPromptItem, MagnificScaleFactor, MagnificOptimizedFor, MagnificEngine, PrecisionScaleFactor, PrecisionFlavor } from '../types';
+import { AppMode, AspectRatio, GenerationStatus, MinimaxResolution, MinimaxDuration, MinimaxModelVersion, WanModelVersion, WanResolution, WanDuration, WanSize720p, WanSize1080p, WanShotType, PixVerseMode, PixVerseResolution, PixVerseDuration, PixVerseStyle, LtxResolution, LtxDuration, LtxFps, RunwayModelVersion, RunwayRatio, RunwayDuration, KlingModelVersion, KlingAspectRatio, KlingDuration, KlingShotType, KlingMultiPromptItem, KlingElement, MagnificScaleFactor, MagnificOptimizedFor, MagnificEngine, PrecisionScaleFactor, PrecisionFlavor } from '../types';
 import { Wand2, UploadCloud, X, Hash, Zap, HelpCircle, Plus, ChevronDown, Shield, ShieldOff, Sparkles, Clock, Monitor, ImageIcon, Film, Volume2, VolumeX, Video, Palette, ArrowRightLeft, Link, Trash2, Users, Focus, Layers, Undo2 } from 'lucide-react';
 
 import { useGeneration } from '../context/GenerationContext';
@@ -86,7 +86,9 @@ const ControlPanel: React.FC = memo(() => {
     klingShotType, setKlingShotType,
     klingSeed, setKlingSeed,
     klingEndImage, setKlingEndImage,
-    klingReferenceVideoUrl, setKlingReferenceVideoUrl,
+    klingReferenceVideo, setKlingReferenceVideo,
+    klingElements, setKlingElements,
+    klingImageUrls, setKlingImageUrls,
     klingMultiPromptEnabled, setKlingMultiPromptEnabled,
     klingMultiPrompts, setKlingMultiPrompts,
     klingGenerateAudio, setKlingGenerateAudio,
@@ -443,6 +445,50 @@ const ControlPanel: React.FC = memo(() => {
   const removeKlingEndImage = useCallback(() => {
     setKlingEndImage(null);
   }, [setKlingEndImage]);
+
+  // Kling Elements refs & handlers
+  const klingElementFrontalRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const klingElementRefRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const klingImageUrlsInputRef = useRef<HTMLInputElement>(null);
+  const klingReferenceVideoInputRef = useRef<HTMLInputElement>(null);
+
+  const MAX_VIDEO_SIZE = 200 * 1024 * 1024;
+
+  const handleKlingReferenceVideoUpload = useCallback((files: FileList | File[]) => {
+    const file = Array.from(files)[0];
+    if (!file) return;
+    if (file.size > MAX_VIDEO_SIZE) {
+      addNotification(tc('file.tooLarge'), tc('file.maxSize', { size: 200 }), 'error');
+      return;
+    }
+    setKlingReferenceVideo(file);
+  }, [addNotification, setKlingReferenceVideo]);
+
+  // Elements preview URLs
+  const klingElementPreviews = useMemo(() => {
+    return klingElements.map(el => ({
+      frontal: el.frontalImage ? URL.createObjectURL(el.frontalImage) : null,
+      refs: el.referenceImages.map(f => URL.createObjectURL(f)),
+    }));
+  }, [klingElements]);
+
+  useEffect(() => {
+    return () => {
+      klingElementPreviews.forEach(p => {
+        if (p.frontal) URL.revokeObjectURL(p.frontal);
+        p.refs.forEach(u => URL.revokeObjectURL(u));
+      });
+    };
+  }, [klingElementPreviews]);
+
+  // ImageUrls preview URLs
+  const klingImageUrlPreviews = useMemo(() => {
+    return klingImageUrls.map(f => URL.createObjectURL(f));
+  }, [klingImageUrls]);
+
+  useEffect(() => {
+    return () => { klingImageUrlPreviews.forEach(u => URL.revokeObjectURL(u)); };
+  }, [klingImageUrlPreviews]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -1839,6 +1885,9 @@ const ControlPanel: React.FC = memo(() => {
     }
 
     const isV2V = klingModelVersion === 'kling-3-omni-pro-v2v' || klingModelVersion === 'kling-3-omni-std-v2v';
+    const isOmni = klingModelVersion === 'kling-3-omni-pro' || klingModelVersion === 'kling-3-omni-std';
+    const omniTotalRefs = klingElements.length + klingImageUrls.length;
+    const omniLimitReached = isOmni && omniTotalRefs >= 4;
 
     // 两级选择：Pro/Std 档位 + 模型类型
     const klingTier: 'pro' | 'std' = klingModelVersion.includes('-std') ? 'std' : 'pro';
@@ -1936,26 +1985,45 @@ const ControlPanel: React.FC = memo(() => {
           </div>
         </div>
 
-        {/* V2V 模式 - 参考视频 URL */}
+        {/* V2V 模式 - 参考视频文件上传 */}
         {isV2V && (
           <div className="space-y-2">
             <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
-              <Link className="w-3 h-3" />
-              <span>{t('video.referenceVideo')}</span>
-              <Tooltip text={t('kling.referenceVideoTooltip')}>
+              <Video className="w-3 h-3" />
+              <span>{t('kling.referenceVideoUpload')}</span>
+              <Tooltip text={t('kling.referenceVideoUploadTooltip')}>
                 <HelpCircle className="w-3 h-3 cursor-help" />
               </Tooltip>
             </label>
-            <input
-              type="url"
-              defaultValue={klingReferenceVideoUrl}
-              onBlur={(e) => setKlingReferenceVideoUrl(e.target.value)}
-              placeholder="https://example.com/video.mp4"
-              className="input w-full text-xs"
-            />
-            <p className="text-xs text-content-tertiary">
-              {t('video.referenceVideoReqs')}
-            </p>
+            {klingReferenceVideo ? (
+              <div className="flex items-center justify-between p-3 bg-surface-hover rounded-lg border border-surface-border">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-content truncate">{klingReferenceVideo.name}</p>
+                  <p className="text-xs text-content-tertiary">{(klingReferenceVideo.size / 1024 / 1024).toFixed(1)} MB</p>
+                </div>
+                <button onClick={() => setKlingReferenceVideo(null)} className="p-1 text-red-400 hover:bg-red-500/20 rounded ml-2">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div
+                onClick={() => klingReferenceVideoInputRef.current?.click()}
+                className="w-full h-16 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all border-surface-border hover:border-content-muted hover:bg-surface-hover"
+              >
+                <input
+                  type="file"
+                  ref={klingReferenceVideoInputRef}
+                  className="hidden"
+                  accept="video/mp4,video/quicktime"
+                  onChange={(e) => {
+                    if (e.target.files) handleKlingReferenceVideoUpload(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+                <UploadCloud className="w-4 h-4 text-content-muted mb-1" />
+                <span className="text-xs text-content-tertiary">{t('kling.referenceVideoMaxSize')}</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -2266,6 +2334,146 @@ const ControlPanel: React.FC = memo(() => {
                 <span className="text-xs text-content-tertiary">{t('video.firstFrameDesc')}</span>
               </div>
             )}
+          </div>
+        )}
+
+        {/* 角色/物体参考 Elements - Pro/Std/Omni Pro/Omni Std，非 V2V */}
+        {!isV2V && (
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <Users className="w-3 h-3" />
+              <span>{t('kling.elements')}</span>
+              <Tooltip text={t('kling.elementsTooltip')}>
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+
+            {klingElements.map((el, idx) => (
+              <div key={idx} className="p-3 bg-surface-hover rounded-lg border border-surface-border space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-content-muted">Element {idx + 1}</span>
+                  <button
+                    onClick={() => setKlingElements(prev => prev.filter((_, i) => i !== idx))}
+                    className="p-1 text-red-400 hover:bg-red-500/20 rounded"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+
+                {/* 正面照 */}
+                <div className="space-y-1">
+                  <span className="text-xs text-content-tertiary">{t('kling.elementFrontal')}</span>
+                  {el.frontalImage && klingElementPreviews[idx]?.frontal ? (
+                    <div className="relative w-16 h-16 rounded overflow-hidden group border border-surface-border inline-block">
+                      <img src={klingElementPreviews[idx].frontal!} alt="frontal" className="w-full h-full object-cover" />
+                      <button
+                        onClick={() => setKlingElements(prev => prev.map((e, i) => i === idx ? { ...e, frontalImage: null } : e))}
+                        className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-3 h-3 text-white" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => klingElementFrontalRefs.current[idx]?.click()}
+                      className="w-16 h-16 border-2 border-dashed rounded flex items-center justify-center cursor-pointer border-surface-border hover:border-content-muted hover:bg-surface-hover"
+                    >
+                      <input type="file" ref={el2 => { klingElementFrontalRefs.current[idx] = el2; }} className="hidden" accept="image/jpeg,image/png,image/webp"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) setKlingElements(prev => prev.map((e2, i) => i === idx ? { ...e2, frontalImage: f } : e2));
+                          e.target.value = '';
+                        }}
+                      />
+                      <Plus className="w-4 h-4 text-content-muted" />
+                    </div>
+                  )}
+                </div>
+
+                {/* 参考图 */}
+                <div className="space-y-1">
+                  <span className="text-xs text-content-tertiary">{t('kling.elementRef')}</span>
+                  <div className="flex flex-wrap gap-2">
+                    {el.referenceImages.map((_, rIdx) => (
+                      <div key={rIdx} className="relative w-16 h-16 rounded overflow-hidden group border border-surface-border">
+                        <img src={klingElementPreviews[idx]?.refs[rIdx] || ''} alt="ref" className="w-full h-full object-cover" />
+                        <button
+                          onClick={() => setKlingElements(prev => prev.map((e2, i) => i === idx ? { ...e2, referenceImages: e2.referenceImages.filter((_, ri) => ri !== rIdx) } : e2))}
+                          className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3 h-3 text-white" />
+                        </button>
+                      </div>
+                    ))}
+                    <div
+                      onClick={() => klingElementRefRefs.current[idx]?.click()}
+                      className="w-16 h-16 border-2 border-dashed rounded flex items-center justify-center cursor-pointer border-surface-border hover:border-content-muted hover:bg-surface-hover"
+                    >
+                      <input type="file" ref={el2 => { klingElementRefRefs.current[idx] = el2; }} className="hidden" accept="image/jpeg,image/png,image/webp" multiple
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length) setKlingElements(prev => prev.map((e2, i) => i === idx ? { ...e2, referenceImages: [...e2.referenceImages, ...files] } : e2));
+                          e.target.value = '';
+                        }}
+                      />
+                      <Plus className="w-4 h-4 text-content-muted" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <button
+              onClick={() => setKlingElements(prev => [...prev, { frontalImage: null, referenceImages: [] }])}
+              disabled={omniLimitReached}
+              className={`w-full py-2 border border-dashed border-surface-border rounded-lg text-xs text-content-muted transition-colors flex items-center justify-center space-x-1 ${omniLimitReached ? 'opacity-40 cursor-not-allowed' : 'hover:bg-surface-hover'}`}
+            >
+              <Plus className="w-3 h-3" />
+              <span>{t('kling.addElement')}</span>
+            </button>
+            <p className="text-xs text-content-tertiary">{t('kling.elementsHint')}</p>
+          </div>
+        )}
+
+        {/* 风格参考图 Image URLs - 仅 Omni Pro/Omni Std，非 V2V */}
+        {!isV2V && (klingModelVersion === 'kling-3-omni-pro' || klingModelVersion === 'kling-3-omni-std') && (
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <Palette className="w-3 h-3" />
+              <span>{t('kling.imageUrlsLabel')}</span>
+              <Tooltip text={t('kling.imageUrlsTooltip')}>
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {klingImageUrls.map((_, idx) => (
+                <div key={idx} className="relative w-16 h-16 rounded overflow-hidden group border border-surface-border">
+                  <img src={klingImageUrlPreviews[idx] || ''} alt="style ref" className="w-full h-full object-cover" />
+                  <button
+                    onClick={() => setKlingImageUrls(prev => prev.filter((_, i) => i !== idx))}
+                    className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-3 h-3 text-white" />
+                  </button>
+                </div>
+              ))}
+              {!omniLimitReached && (
+              <div
+                onClick={() => klingImageUrlsInputRef.current?.click()}
+                className="w-16 h-16 border-2 border-dashed rounded flex items-center justify-center cursor-pointer border-surface-border hover:border-content-muted hover:bg-surface-hover"
+              >
+                <input type="file" ref={klingImageUrlsInputRef} className="hidden" accept="image/jpeg,image/png,image/webp" multiple
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (files.length) setKlingImageUrls(prev => [...prev, ...files]);
+                    e.target.value = '';
+                  }}
+                />
+                <Plus className="w-4 h-4 text-content-muted" />
+              </div>
+              )}
+            </div>
+            <p className="text-xs text-content-tertiary">{t('kling.imageUrlsHint')}</p>
           </div>
         )}
 

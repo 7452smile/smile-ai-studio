@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { deleteImageFromR2 } from "../_shared/r2.ts";
+import { deleteImageFromR2, downloadAndUploadToR2 } from "../_shared/r2.ts";
 import { refundUserCreditsById } from "../_shared/userCredits.ts";
 import { jsonResponse, handleCors } from "../_shared/response.ts";
 
@@ -95,6 +95,23 @@ async function cleanupTempImages(task: any) {
     }
 }
 
+// 根据用户订阅等级获取 R2 存储前缀
+async function getR2PrefixForUser(supabase: any, userId: string | null): Promise<string> {
+    if (!userId) return "results/1d";
+    try {
+        const { data } = await supabase
+            .from("user_subscriptions")
+            .select("tier_id")
+            .eq("user_id", userId)
+            .eq("status", "active")
+            .single();
+        const tier = data?.tier_id;
+        if (tier === "studio") return "results/30d";
+        if (tier === "starter" || tier === "advanced" || tier === "flagship") return "results/7d";
+    } catch {}
+    return "results/1d";
+}
+
 serve(async (req) => {
     const corsResp = handleCors(req);
     if (corsResp) return corsResp;
@@ -122,6 +139,12 @@ serve(async (req) => {
             return jsonResponse({ error: "Task not found" }, 404);
         }
 
+        // 幂等检查：如果任务已完成或已失败，忽略重复的 webhook
+        if (task.status === "completed" || task.status === "failed") {
+            console.log(`[freepik-webhook] Task ${task.id} already ${task.status}, ignoring duplicate webhook`);
+            return jsonResponse({ success: true, message: "already processed" });
+        }
+
         if (status === "COMPLETED") {
             const endpoint = getEndpointForTask(task);
             console.log("[freepik-webhook] Task model:", task.model, "Endpoint:", endpoint);
@@ -141,7 +164,19 @@ serve(async (req) => {
 
             const getResult = await getResponse.json();
             console.log("[freepik-webhook] GET result:", JSON.stringify(getResult));
-            const resultUrl = getResult?.data?.generated?.[0] || null;
+            let resultUrl = getResult?.data?.generated?.[0] || null;
+
+            // 转存结果到 R2（按用户订阅等级存到不同前缀）
+            if (resultUrl) {
+                try {
+                    const prefix = await getR2PrefixForUser(supabase, task.user_id);
+                    const ext = task.task_type === "video" ? "mp4" : "png";
+                    resultUrl = await downloadAndUploadToR2(resultUrl, `${task.id}.${ext}`, prefix);
+                    console.log("[freepik-webhook] Saved to R2:", resultUrl);
+                } catch (e) {
+                    console.error("[freepik-webhook] R2 save failed, using original URL:", e);
+                }
+            }
 
             await supabase
                 .from("generation_tasks")
@@ -167,7 +202,7 @@ serve(async (req) => {
             // 退还用户积分
             if (task.credits_cost && task.user_id) {
                 console.log(`[freepik-webhook] Refunding ${task.credits_cost} credits to userId=${task.user_id}`);
-                const refundResult = await refundUserCreditsById(task.user_id, task.credits_cost, task.id);
+                const refundResult = await refundUserCreditsById(task.user_id, task.credits_cost, task.id, task.model || "unknown");
                 if (!refundResult.success) {
                     console.error(`[freepik-webhook] Refund failed for task ${task.id}, credits may be lost!`);
                 }

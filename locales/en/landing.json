@@ -70,7 +70,7 @@
       "name": "Free",
       "price": "$0",
       "period": "Free forever",
-      "features": ["188 credits on signup", "Daily login +10 credits", "1 concurrent task"],
+      "features": ["188 credits on signup", "1 concurrent task"],
       "button": "Start Free"
     },
     "starter": {
@@ -184,7 +184,7 @@
         },
         {
           "heading": "Credits",
-          "text": "Different models and parameters consume different amounts of credits. Higher resolution and longer videos cost more credits. Daily login rewards free credits. See the Model Pricing page for detailed consumption rules."
+          "text": "Different models and parameters consume different amounts of credits. Higher resolution and longer videos cost more credits. See the Model Pricing page for detailed consumption rules."
         },
         {
           "heading": "Content Guidelines",
@@ -194,7 +194,7 @@
           "heading": "FAQ",
           "items": [
             { "q": "What if generation fails?", "a": "Failed generations do not consume credits. Check if your prompt contains prohibited content and try again." },
-            { "q": "How to get more credits?", "a": "Purchase subscription plans, log in daily, or invite friends to earn credits." },
+            { "q": "How to get more credits?", "a": "Purchase subscription plans or invite friends to earn credits." },
             { "q": "What payment methods are supported?", "a": "We currently support Alipay and PayPal." }
           ]
         },

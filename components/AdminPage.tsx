@@ -2,13 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   BarChart3, Users, ShoppingCart, Activity, CreditCard, Key, Gift, Ticket,
   Search, ChevronLeft, ChevronRight, RefreshCw, Plus, Minus,
-  CheckCircle, XCircle, Clock, AlertTriangle, Copy, X
+  CheckCircle, XCircle, Clock, AlertTriangle, Copy, X, Shield, Eye, ChevronUp, ChevronDown
 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 import { useGeneration } from '../context/GenerationContext';
 import { adminQuery, adminAction, supabase } from '../services/api';
 
-type AdminTab = 'overview' | 'users' | 'orders' | 'tasks' | 'subscriptions' | 'api_keys' | 'referrals' | 'redemption';
+type AdminTab = 'overview' | 'users' | 'orders' | 'tasks' | 'subscriptions' | 'api_keys' | 'referrals' | 'redemption' | 'audit_log';
 
 interface AdminOverviewData {
   total_users: number;
@@ -69,6 +68,22 @@ interface AdminApiKey {
   is_active: boolean;
   note: string | null;
 }
+
+// ============================================================
+// 辅助函数
+// ============================================================
+const relativeTime = (dateStr: string | null) => {
+  if (!dateStr) return '从未';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return '刚刚';
+  if (mins < 60) return `${mins}分钟前`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}小时前`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}天前`;
+  return `${Math.floor(days / 30)}个月前`;
+};
 
 // ============================================================
 // 概览 Tab
@@ -161,7 +176,7 @@ const Pagination: React.FC<{ page: number; total: number; pageSize: number; onCh
 // ============================================================
 // 用户管理 Tab
 // ============================================================
-const UsersTab: React.FC<{ phone: string }> = ({ phone }) => {
+const UsersTab: React.FC<{ phone: string; addNotification: any }> = ({ phone, addNotification }) => {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -170,6 +185,8 @@ const UsersTab: React.FC<{ phone: string }> = ({ phone }) => {
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [creditAmount, setCreditAmount] = useState('');
   const [tierSelect, setTierSelect] = useState('');
+  const [detailUser, setDetailUser] = useState<any>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -184,14 +201,22 @@ const UsersTab: React.FC<{ phone: string }> = ({ phone }) => {
     const amt = parseInt(creditAmount);
     if (isNaN(amt) || amt === 0) return;
     const res = await adminAction(phone, 'adjust_credits', { phone: userPhone, amount: amt });
-    if (res.success) { setCreditAmount(''); setEditingUser(null); load(); }
-    else alert(res.error || '操作失败');
+    if (res.success) { setCreditAmount(''); setEditingUser(null); addNotification('积分调整成功', '', 'success'); load(); }
+    else addNotification(res.error || '操作失败', '', 'error');
   };
 
   const handleChangeTier = async (userPhone: string, tierId: string) => {
     const res = await adminAction(phone, 'change_tier', { phone: userPhone, tier_id: tierId });
-    if (res.success) { setTierSelect(''); load(); }
-    else alert(res.error || '操作失败');
+    if (res.success) { setTierSelect(''); addNotification('套餐修改成功', '', 'success'); load(); }
+    else addNotification(res.error || '操作失败', '', 'error');
+  };
+
+  const openDetail = async (userId: string) => {
+    setDetailLoading(true);
+    setDetailUser(null);
+    const res = await adminQuery(phone, 'user_detail', { user_id: userId });
+    if (res.success) setDetailUser(res.data);
+    setDetailLoading(false);
   };
 
   return (
@@ -222,7 +247,7 @@ const UsersTab: React.FC<{ phone: string }> = ({ phone }) => {
             </tr></thead>
             <tbody>
               {users.map(u => (
-                <tr key={u.id || u.phone} className="border-b border-surface-border hover:bg-surface-hover">
+                <tr key={u.id || u.phone} className="border-b border-surface-border hover:bg-surface-hover cursor-pointer" onClick={() => openDetail(u.id)}>
                   <td className="py-2 px-3 text-content">{u.nickname || '-'}</td>
                   <td className="py-2 px-3 text-content-secondary">
                     {u.phone && <span className="mr-1">{u.phone}</span>}
@@ -234,7 +259,7 @@ const UsersTab: React.FC<{ phone: string }> = ({ phone }) => {
                   <td className="py-2 px-3 text-right text-content">{u.credits}</td>
                   <td className="py-2 px-3 text-content-secondary">{u.subscription_tier || 'free'}</td>
                   <td className="py-2 px-3 text-content-tertiary">{new Date(u.created_at).toLocaleDateString('zh-CN')}</td>
-                  <td className="py-2 px-3 text-right space-x-1">
+                  <td className="py-2 px-3 text-right space-x-1" onClick={e => e.stopPropagation()}>
                     {editingUser === (u.id || u.phone) ? (
                       <div className="inline-flex items-center space-x-1">
                         <input className="w-20 px-2 py-1 bg-surface border border-surface-border rounded text-xs text-content" placeholder="正=加/负=扣" value={creditAmount} onChange={e => setCreditAmount(e.target.value)} />
@@ -258,6 +283,82 @@ const UsersTab: React.FC<{ phone: string }> = ({ phone }) => {
         </div>
       )}
       <Pagination page={page} total={total} pageSize={20} onChange={setPage} />
+
+      {/* 用户详情弹窗 */}
+      {(detailUser || detailLoading) && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex justify-end" onClick={() => { setDetailUser(null); setDetailLoading(false); }}>
+          <div className="w-full max-w-lg bg-surface h-full overflow-y-auto custom-scrollbar p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-content">用户详情</h3>
+              <button onClick={() => { setDetailUser(null); setDetailLoading(false); }} className="text-content-tertiary hover:text-content"><X className="w-4 h-4" /></button>
+            </div>
+            {detailLoading ? <div className="text-center text-content-tertiary py-8">加载中...</div> : detailUser && (
+              <>
+                <div className="card p-4 space-y-2 text-xs">
+                  <div className="flex justify-between"><span className="text-content-tertiary">昵称</span><span className="text-content">{detailUser.profile?.nickname || '-'}</span></div>
+                  <div className="flex justify-between"><span className="text-content-tertiary">手机</span><span className="text-content">{detailUser.profile?.phone || '-'}</span></div>
+                  <div className="flex justify-between"><span className="text-content-tertiary">邮箱</span><span className="text-content">{detailUser.profile?.email || '-'}</span></div>
+                  <div className="flex justify-between"><span className="text-content-tertiary">套餐</span><span className="text-content">{detailUser.profile?.subscription_tier || 'free'}</span></div>
+                  <div className="flex justify-between"><span className="text-content-tertiary">最后活跃</span><span className="text-content">{relativeTime(detailUser.last_active_at)}</span></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: '当前余额', value: detailUser.profile?.credits ?? 0, color: 'text-blue-400' },
+                    { label: '总消耗', value: detailUser.total_consumed ?? 0, color: 'text-red-400' },
+                    { label: '总兑换', value: detailUser.total_recharged ?? 0, color: 'text-green-400' },
+                    { label: '总付款', value: `¥${(detailUser.total_paid ?? 0).toFixed(2)}`, color: 'text-amber-400' },
+                  ].map(c => (
+                    <div key={c.label} className="card p-3">
+                      <div className="text-[10px] text-content-tertiary">{c.label}</div>
+                      <div className={`text-lg font-bold ${c.color}`}>{c.value}</div>
+                    </div>
+                  ))}
+                </div>
+                {detailUser.credits_by_model && Object.keys(detailUser.credits_by_model).length > 0 && (
+                  <div className="card p-4">
+                    <div className="text-xs font-medium text-content mb-2">模型消耗明细</div>
+                    {Object.entries(detailUser.credits_by_model as Record<string, number>).sort((a, b) => b[1] - a[1]).map(([m, v]) => (
+                      <div key={m} className="flex justify-between text-xs py-1 border-b border-surface-border last:border-0">
+                        <span className="text-content-secondary">{m}</span><span className="text-content font-medium">{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {(detailUser.orders || []).length > 0 && (
+                  <div className="card p-4">
+                    <div className="text-xs font-medium text-content mb-2">最近订单</div>
+                    <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
+                      {detailUser.orders.slice(0, 10).map((o: any) => (
+                        <div key={o.out_trade_no} className="flex justify-between text-[11px] py-1 border-b border-surface-border last:border-0">
+                          <span className="text-content-tertiary">{new Date(o.created_at).toLocaleDateString('zh-CN')}</span>
+                          <span className="text-content">{o.tier_id}</span>
+                          <span className="text-content">¥{Number(o.amount).toFixed(2)}</span>
+                          <span className={o.status === 'paid' ? 'text-green-400' : 'text-amber-400'}>{o.status === 'paid' ? '已付' : o.status}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(detailUser.tasks || []).length > 0 && (
+                  <div className="card p-4">
+                    <div className="text-xs font-medium text-content mb-2">最近任务</div>
+                    <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
+                      {detailUser.tasks.slice(0, 10).map((t: any) => (
+                        <div key={t.id} className="flex justify-between text-[11px] py-1 border-b border-surface-border last:border-0">
+                          <span className="text-content-tertiary">{new Date(t.created_at).toLocaleDateString('zh-CN')}</span>
+                          <span className="text-content">{t.model}</span>
+                          <span className={t.status === 'completed' ? 'text-green-400' : t.status === 'failed' ? 'text-red-400' : 'text-amber-400'}>{t.status}</span>
+                          <span className="text-content-tertiary">{t.credits_cost || 0}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -265,28 +366,32 @@ const UsersTab: React.FC<{ phone: string }> = ({ phone }) => {
 // ============================================================
 // 订单管理 Tab
 // ============================================================
-const OrdersTab: React.FC<{ phone: string }> = ({ phone }) => {
+const OrdersTab: React.FC<{ phone: string; addNotification: any }> = ({ phone, addNotification }) => {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await adminQuery(phone, 'orders', { page, status: statusFilter, search, page_size: 20 });
+    const res = await adminQuery(phone, 'orders', { page, status: statusFilter, search, page_size: 20, date_from: dateFrom, date_to: dateTo, sort_by: sortBy, sort_order: sortOrder });
     if (res.success) { setOrders(res.data || []); setTotal(res.total || 0); }
     setLoading(false);
-  }, [phone, page, statusFilter, search]);
+  }, [phone, page, statusFilter, search, dateFrom, dateTo, sortBy, sortOrder]);
 
   useEffect(() => { load(); }, [load]);
 
   const handleMarkPaid = async (outTradeNo: string) => {
     if (!confirm('确认手动标记此订单为已支付？')) return;
     const res = await adminAction(phone, 'mark_order_paid', { out_trade_no: outTradeNo });
-    if (res.success) load();
-    else alert(res.error || '操作失败');
+    if (res.success) { addNotification('标记成功', '', 'success'); load(); }
+    else addNotification(res.error || '操作失败', '', 'error');
   };
 
   const statusTabs = [
@@ -312,6 +417,9 @@ const OrdersTab: React.FC<{ phone: string }> = ({ phone }) => {
           <input className="w-full pl-9 pr-3 py-2 bg-surface-raised border border-surface-border rounded-lg text-sm text-content placeholder:text-content-tertiary focus:outline-none focus:border-accent"
             placeholder="订单号/手机号/邮箱..." value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
         </div>
+        <input type="date" className="bg-surface-raised border border-surface-border rounded-lg text-xs text-content py-2 px-2" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} />
+        <span className="text-content-tertiary text-xs">至</span>
+        <input type="date" className="bg-surface-raised border border-surface-border rounded-lg text-xs text-content py-2 px-2" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }} />
       </div>
       {loading ? <div className="text-center text-content-tertiary py-8">加载中...</div> : (
         <div className="overflow-x-auto">
@@ -320,9 +428,13 @@ const OrdersTab: React.FC<{ phone: string }> = ({ phone }) => {
               <th className="text-left py-2 px-3">订单号</th>
               <th className="text-left py-2 px-3">手机号/邮箱</th>
               <th className="text-left py-2 px-3">套餐</th>
-              <th className="text-right py-2 px-3">金额</th>
+              <th className="text-right py-2 px-3 cursor-pointer select-none" onClick={() => { setSortBy('amount'); setSortOrder(sortBy === 'amount' && sortOrder === 'desc' ? 'asc' : 'desc'); setPage(1); }}>
+                金额 {sortBy === 'amount' && (sortOrder === 'asc' ? <ChevronUp className="w-3 h-3 inline" /> : <ChevronDown className="w-3 h-3 inline" />)}
+              </th>
               <th className="text-center py-2 px-3">状态</th>
-              <th className="text-left py-2 px-3">时间</th>
+              <th className="text-left py-2 px-3 cursor-pointer select-none" onClick={() => { setSortBy('created_at'); setSortOrder(sortBy === 'created_at' && sortOrder === 'desc' ? 'asc' : 'desc'); setPage(1); }}>
+                时间 {sortBy === 'created_at' && (sortOrder === 'asc' ? <ChevronUp className="w-3 h-3 inline" /> : <ChevronDown className="w-3 h-3 inline" />)}
+              </th>
               <th className="text-right py-2 px-3">操作</th>
             </tr></thead>
             <tbody>
@@ -370,24 +482,26 @@ const TasksTab: React.FC<{ phone: string }> = ({ phone }) => {
   const [statusFilter, setStatusFilter] = useState('');
   const [modelFilter, setModelFilter] = useState('');
   const [loading, setLoading] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [taskStats, setTaskStats] = useState<Record<string, { count: number; credits: number; completed: number; failed: number }> | null>(null);
+  const [showStats, setShowStats] = useState(false);
+  const [expandedTask, setExpandedTask] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await adminQuery(phone, 'tasks', { page, status: statusFilter, model: modelFilter, page_size: 20 });
+    const res = await adminQuery(phone, 'tasks', { page, status: statusFilter, model: modelFilter, page_size: 20, date_from: dateFrom, date_to: dateTo });
     if (res.success) { setTasks(res.data || []); setTotal(res.total || 0); }
     setLoading(false);
-  }, [phone, page, statusFilter, modelFilter]);
+  }, [phone, page, statusFilter, modelFilter, dateFrom, dateTo]);
+
+  const loadStats = useCallback(async () => {
+    const res = await adminQuery(phone, 'task_stats', { date_from: dateFrom || undefined, date_to: dateTo || undefined });
+    if (res.success) setTaskStats(res.data);
+  }, [phone, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
-
-  // Realtime 订阅
-  useEffect(() => {
-    const channel = supabase
-      .channel('admin-tasks-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'generation_tasks' }, () => { load(); })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [load]);
+  useEffect(() => { if (showStats) loadStats(); }, [showStats, loadStats]);
 
   return (
     <div className="space-y-4">
@@ -403,8 +517,40 @@ const TasksTab: React.FC<{ phone: string }> = ({ phone }) => {
           <option value="">全部模型</option>
           {['seedream','minimax','wan','seedance','pixverse','ltx','runway','kling','magnific','remove-bg'].map(m => <option key={m} value={m}>{m}</option>)}
         </select>
+        <input type="date" className="bg-surface-raised border border-surface-border rounded-lg text-xs text-content py-2 px-2" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} />
+        <span className="text-content-tertiary text-xs">至</span>
+        <input type="date" className="bg-surface-raised border border-surface-border rounded-lg text-xs text-content py-2 px-2" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }} />
         <button onClick={load} className="p-2 hover:bg-surface-hover rounded-lg text-content-tertiary"><RefreshCw className="w-4 h-4" /></button>
+        <button onClick={() => setShowStats(!showStats)} className={`text-xs px-3 py-1.5 rounded-lg ${showStats ? 'bg-accent text-white' : 'text-content-tertiary hover:bg-surface-hover'}`}>
+          模型统计
+        </button>
       </div>
+      {/* 模型统计面板 */}
+      {showStats && taskStats && (
+        <div className="card p-4">
+          <div className="text-xs font-medium text-content mb-2">模型统计</div>
+          <table className="w-full text-xs">
+            <thead><tr className="text-content-tertiary border-b border-surface-border">
+              <th className="text-left py-1 px-2">模型</th>
+              <th className="text-right py-1 px-2">任务数</th>
+              <th className="text-right py-1 px-2">消耗积分</th>
+              <th className="text-right py-1 px-2">失败积分</th>
+              <th className="text-right py-1 px-2">成功率</th>
+            </tr></thead>
+            <tbody>
+              {Object.entries(taskStats).sort((a, b) => (b[1] as any).credits - (a[1] as any).credits).map(([model, s]: [string, any]) => (
+                <tr key={model} className="border-b border-surface-border last:border-0">
+                  <td className="py-1 px-2 text-content">{model}</td>
+                  <td className="py-1 px-2 text-right text-content-secondary">{s.count}</td>
+                  <td className="py-1 px-2 text-right text-accent font-medium">{s.credits}</td>
+                  <td className="py-1 px-2 text-right text-red-400">{s.failed_credits || 0}</td>
+                  <td className="py-1 px-2 text-right text-content-secondary">{s.count > 0 ? Math.round(s.completed / s.count * 100) : 0}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       {loading ? <div className="text-center text-content-tertiary py-8">加载中...</div> : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -418,7 +564,8 @@ const TasksTab: React.FC<{ phone: string }> = ({ phone }) => {
             </tr></thead>
             <tbody>
               {tasks.map(t => (
-                <tr key={t.id} className="border-b border-surface-border hover:bg-surface-hover">
+                <React.Fragment key={t.id}>
+                <tr className="border-b border-surface-border hover:bg-surface-hover cursor-pointer" onClick={() => setExpandedTask(expandedTask === t.id ? null : t.id)}>
                   <td className="py-2 px-3 text-content-secondary">{t.nickname || t.user_phone}</td>
                   <td className="py-2 px-3 text-content">{t.model}</td>
                   <td className="py-2 px-3 text-content-tertiary">{t.task_type || '-'}</td>
@@ -433,6 +580,22 @@ const TasksTab: React.FC<{ phone: string }> = ({ phone }) => {
                   <td className="py-2 px-3 text-right text-content">{t.credits_cost || 0}</td>
                   <td className="py-2 px-3 text-content-tertiary">{new Date(t.created_at).toLocaleString('zh-CN')}</td>
                 </tr>
+                {expandedTask === t.id && (
+                  <tr className="bg-surface-hover/50">
+                    <td colSpan={6} className="px-3 py-3">
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+                        <div className="flex justify-between"><span className="text-content-tertiary">任务ID</span><span className="text-content font-mono text-[11px]">{t.id}</span></div>
+                        <div className="flex justify-between"><span className="text-content-tertiary">Freepik Task ID</span><span className="text-content font-mono text-[11px]">{(t as any).freepik_task_id || '-'}</span></div>
+                        <div className="flex justify-between"><span className="text-content-tertiary">API Key</span><span className="text-content font-mono text-[11px]">{(t as any).api_key || '-'}</span></div>
+                        <div className="flex justify-between"><span className="text-content-tertiary">完成时间</span><span className="text-content">{(t as any).completed_at ? new Date((t as any).completed_at).toLocaleString('zh-CN') : '-'}</span></div>
+                        {(t as any).error_message && <div className="col-span-2 flex justify-between"><span className="text-content-tertiary">错误信息</span><span className="text-red-400 truncate max-w-[400px]">{(t as any).error_message}</span></div>}
+                        {(t as any).result_url && <div className="col-span-2 flex justify-between"><span className="text-content-tertiary">结果URL</span><span className="text-accent truncate max-w-[400px]">{(t as any).result_url}</span></div>}
+                        {(t as any).request_params && <div className="col-span-2"><span className="text-content-tertiary">请求参数</span><pre className="mt-1 text-[11px] text-content-secondary bg-surface rounded p-2 overflow-x-auto max-h-32 custom-scrollbar">{JSON.stringify((t as any).request_params, null, 2)}</pre></div>}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>
@@ -505,9 +668,13 @@ const SubscriptionsTab: React.FC<{ phone: string }> = ({ phone }) => {
 // ============================================================
 // API密钥 Tab
 // ============================================================
-const ApiKeysTab: React.FC<{ phone: string }> = ({ phone }) => {
+const ApiKeysTab: React.FC<{ phone: string; addNotification: any }> = ({ phone, addNotification }) => {
   const [keys, setKeys] = useState<AdminApiKey[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [keysText, setKeysText] = useState('');
+  const [initCredits, setInitCredits] = useState('');
+  const [addLoading, setAddLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -520,12 +687,34 @@ const ApiKeysTab: React.FC<{ phone: string }> = ({ phone }) => {
 
   const handleToggle = async (keyId: string, currentActive: boolean) => {
     const res = await adminAction(phone, 'toggle_api_key', { key_id: keyId, is_active: !currentActive });
-    if (res.success) load();
-    else alert(res.error || '操作失败');
+    if (res.success) { addNotification('操作成功', '', 'success'); load(); }
+    else addNotification(res.error || '操作失败', '', 'error');
+  };
+
+  const handleBatchAdd = async () => {
+    const keyList = keysText.split('\n').map(k => k.trim()).filter(Boolean);
+    if (keyList.length === 0) return addNotification('请输入至少一个密钥', '', 'error');
+    setAddLoading(true);
+    const res = await adminAction(phone, 'batch_add_api_keys', {
+      keys: keyList,
+      remaining_credits: initCredits ? Number(initCredits) : null,
+    });
+    setAddLoading(false);
+    if (res.success) {
+      addNotification(`成功添加 ${res.count || keyList.length} 个密钥`, '', 'success');
+      setShowAdd(false); setKeysText(''); setInitCredits('');
+      load();
+    } else addNotification(res.error || '添加失败', '', 'error');
   };
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center space-x-3">
+        <button onClick={() => setShowAdd(true)} className="btn-primary text-xs px-4 py-2 flex items-center space-x-1.5">
+          <Plus className="w-3.5 h-3.5" /><span>批量添加密钥</span>
+        </button>
+        <button onClick={load} className="p-2 hover:bg-surface-hover rounded-lg text-content-tertiary"><RefreshCw className="w-4 h-4" /></button>
+      </div>
       {loading ? <div className="text-center text-content-tertiary py-8">加载中...</div> : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -557,6 +746,31 @@ const ApiKeysTab: React.FC<{ phone: string }> = ({ phone }) => {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* 批量添加弹窗 */}
+      {showAdd && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowAdd(false)}>
+          <div className="card p-6 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-content">批量添加 API 密钥</h3>
+              <button onClick={() => setShowAdd(false)} className="text-content-tertiary hover:text-content"><X className="w-4 h-4" /></button>
+            </div>
+            <div>
+              <label className="block text-xs text-content-tertiary mb-1">密钥（一行一个）</label>
+              <textarea className="w-full bg-surface-overlay border border-surface-border rounded-lg px-3 py-2 text-sm text-content font-mono focus:outline-none focus:border-accent h-40 resize-none"
+                placeholder="sk-xxx&#10;sk-yyy&#10;sk-zzz" value={keysText} onChange={e => setKeysText(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-xs text-content-tertiary mb-1">起始余额（留空为无限）</label>
+              <input type="number" className="w-full bg-surface-overlay border border-surface-border rounded-lg px-3 py-2 text-sm text-content focus:outline-none focus:border-accent"
+                placeholder="如 1000" value={initCredits} onChange={e => setInitCredits(e.target.value)} />
+            </div>
+            <button onClick={handleBatchAdd} disabled={addLoading} className="w-full btn-primary text-sm py-2.5 disabled:opacity-50">
+              {addLoading ? '添加中...' : `添加 ${keysText.split('\n').filter(k => k.trim()).length} 个密钥`}
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -706,7 +920,7 @@ const TIER_NAMES: Record<string, string> = {
 
 const PAID_TIERS = ['starter', 'advanced', 'flagship', 'studio'];
 
-const RedemptionTab: React.FC<{ phone: string }> = ({ phone }) => {
+const RedemptionTab: React.FC<{ phone: string; addNotification: any }> = ({ phone, addNotification }) => {
   const [codes, setCodes] = useState<AdminRedemptionCode[]>([]);
   const [total, setTotal] = useState(0);
   const [stats, setStats] = useState<{ total_codes: number; total_redemptions: number } | null>(null);
@@ -719,6 +933,7 @@ const RedemptionTab: React.FC<{ phone: string }> = ({ phone }) => {
   const [createForm, setCreateForm] = useState({ code: '', credits_amount: 100, max_uses: 1, code_type: 'promo', description: '', expires_at: '', tier_id: '' });
   const [batchForm, setBatchForm] = useState({ count: 10, prefix: '', credits_amount: 100, max_uses: 1, code_type: 'promo', description: '', expires_at: '', tier_id: '' });
   const [actionLoading, setActionLoading] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -735,9 +950,9 @@ const RedemptionTab: React.FC<{ phone: string }> = ({ phone }) => {
 
   const handleCreate = async () => {
     if (createForm.code_type === 'subscription') {
-      if (!createForm.tier_id) return alert('请选择套餐');
+      if (!createForm.tier_id) return addNotification('请选择套餐', '', 'error');
     } else {
-      if (!createForm.credits_amount || createForm.credits_amount <= 0) return alert('积分数必须大于0');
+      if (!createForm.credits_amount || createForm.credits_amount <= 0) return addNotification('积分数必须大于0', '', 'error');
     }
     setActionLoading(true);
     const res = await adminAction(phone, 'create_redemption_code', {
@@ -753,18 +968,19 @@ const RedemptionTab: React.FC<{ phone: string }> = ({ phone }) => {
     if (res.success) {
       setShowCreate(false);
       setCreateForm({ code: '', credits_amount: 100, max_uses: 1, code_type: 'promo', description: '', expires_at: '', tier_id: '' });
+      addNotification('创建成功', '', 'success');
       load();
     } else {
-      alert(res.error || '创建失败');
+      addNotification(res.error || '创建失败', '', 'error');
     }
   };
 
   const handleBatchCreate = async () => {
-    if (!batchForm.count || batchForm.count <= 0) return alert('数量必须大于0');
+    if (!batchForm.count || batchForm.count <= 0) return addNotification('数量必须大于0', '', 'error');
     if (batchForm.code_type === 'subscription') {
-      if (!batchForm.tier_id) return alert('请选择套餐');
+      if (!batchForm.tier_id) return addNotification('请选择套餐', '', 'error');
     } else {
-      if (!batchForm.credits_amount || batchForm.credits_amount <= 0) return alert('积分数必须大于0');
+      if (!batchForm.credits_amount || batchForm.credits_amount <= 0) return addNotification('积分数必须大于0', '', 'error');
     }
     setActionLoading(true);
     const res = await adminAction(phone, 'batch_create_redemption_codes', {
@@ -781,16 +997,28 @@ const RedemptionTab: React.FC<{ phone: string }> = ({ phone }) => {
     if (res.success) {
       setShowBatch(false);
       setBatchResult(res.codes || []);
+      addNotification('批量创建成功', '', 'success');
       load();
     } else {
-      alert(res.error || '批量创建失败');
+      addNotification(res.error || '批量创建失败', '', 'error');
     }
   };
 
   const handleToggle = async (codeId: string, currentActive: boolean) => {
     const res = await adminAction(phone, 'disable_redemption_code', { code_id: codeId, is_active: !currentActive });
-    if (res.success) load();
-    else alert(res.error || '操作失败');
+    if (res.success) { addNotification('操作成功', '', 'success'); load(); }
+    else addNotification(res.error || '操作失败', '', 'error');
+  };
+
+  const [recordsModal, setRecordsModal] = useState<{ codeId: string; records: any[] } | null>(null);
+  const [recordsLoading, setRecordsLoading] = useState(false);
+
+  const viewRecords = async (codeId: string) => {
+    setRecordsLoading(true);
+    setRecordsModal({ codeId, records: [] });
+    const res = await adminQuery(phone, 'redemption_records', { code_id: codeId });
+    if (res.success) setRecordsModal({ codeId, records: res.data || [] });
+    setRecordsLoading(false);
   };
 
   const copyToClipboard = (text: string) => {
@@ -840,6 +1068,10 @@ const RedemptionTab: React.FC<{ phone: string }> = ({ phone }) => {
         <button onClick={() => setShowBatch(true)} className="btn-secondary text-xs px-4 py-2 flex items-center space-x-1.5">
           <Plus className="w-3.5 h-3.5" /><span>批量创建</span>
         </button>
+        <button onClick={() => setShowInactive(!showInactive)}
+          className={`text-xs px-4 py-2 rounded-lg ${showInactive ? 'bg-accent text-white' : 'text-content-tertiary hover:bg-surface-hover border border-surface-border'}`}>
+          {showInactive ? '返回有效码' : '查看已用完/已禁用'}
+        </button>
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-content-tertiary" />
           <input className="w-full pl-9 pr-3 py-2 bg-surface-raised border border-surface-border rounded-lg text-sm text-content placeholder:text-content-tertiary focus:outline-none focus:border-accent"
@@ -881,7 +1113,11 @@ const RedemptionTab: React.FC<{ phone: string }> = ({ phone }) => {
               <th className="text-right py-2 px-3">操作</th>
             </tr></thead>
             <tbody>
-              {codes.map(c => (
+              {codes.filter(c => {
+                const isUsedUp = c.current_uses >= c.max_uses;
+                const isInactive = !c.is_active;
+                return showInactive ? (isUsedUp || isInactive) : (!isUsedUp && !isInactive);
+              }).map(c => (
                 <tr key={c.id} className="border-b border-surface-border hover:bg-surface-hover">
                   <td className="py-2 px-3 text-content font-mono text-[11px] font-semibold">{c.code}</td>
                   <td className="py-2 px-3 text-right">
@@ -896,6 +1132,7 @@ const RedemptionTab: React.FC<{ phone: string }> = ({ phone }) => {
                   <td className="py-2 px-3 text-content-tertiary">{c.expires_at ? new Date(c.expires_at).toLocaleString('zh-CN') : '永不过期'}</td>
                   <td className="py-2 px-3 text-content-tertiary truncate max-w-[120px]">{c.description || '-'}</td>
                   <td className="py-2 px-3 text-right space-x-2">
+                    <button onClick={() => viewRecords(c.id)} className="text-content-tertiary hover:text-content" title="查看记录"><Eye className="w-3.5 h-3.5 inline" /></button>
                     <button onClick={() => copyToClipboard(c.code)} className="text-content-tertiary hover:text-content" title="复制"><Copy className="w-3.5 h-3.5 inline" /></button>
                     <button onClick={() => handleToggle(c.id, c.is_active)}
                       className={`text-xs ${c.is_active ? 'text-red-400 hover:text-red-300' : 'text-green-400 hover:text-green-300'}`}>
@@ -1061,6 +1298,97 @@ const RedemptionTab: React.FC<{ phone: string }> = ({ phone }) => {
           </div>
         </div>
       )}
+
+      {/* 兑换记录弹窗 */}
+      {recordsModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setRecordsModal(null)}>
+          <div className="card p-6 w-full max-w-md space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-content">兑换记录</h3>
+              <button onClick={() => setRecordsModal(null)} className="text-content-tertiary hover:text-content"><X className="w-4 h-4" /></button>
+            </div>
+            {recordsLoading ? <div className="text-center text-content-tertiary py-4">加载中...</div> : (
+              recordsModal.records.length === 0 ? <div className="text-center text-content-tertiary py-4">暂无兑换记录</div> : (
+                <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
+                  {recordsModal.records.map((r: any, i: number) => (
+                    <div key={i} className="flex justify-between text-xs py-1.5 border-b border-surface-border last:border-0">
+                      <span className="text-content">{r.nickname || r.user_id?.slice(0, 8)}</span>
+                      <span className="text-content-tertiary">{r.credits_amount} 积分</span>
+                      <span className="text-content-tertiary">{new Date(r.created_at).toLocaleString('zh-CN')}</span>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============================================================
+// 操作日志 Tab
+// ============================================================
+const AuditLogTab: React.FC<{ phone: string }> = ({ phone }) => {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [actionFilter, setActionFilter] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const res = await adminQuery(phone, 'audit_log', { page, page_size: 20, action_type: actionFilter });
+    if (res.success) { setLogs(res.data || []); setTotal(res.total || 0); }
+    setLoading(false);
+  }, [phone, page, actionFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const ACTION_TYPES = ['adjust_credits', 'change_tier', 'mark_order_paid', 'toggle_api_key', 'create_redemption_code', 'batch_create_redemption_codes', 'disable_redemption_code', 'batch_disable_used_codes'];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center space-x-3">
+        <select className="bg-surface-raised border border-surface-border rounded-lg text-xs text-content py-2 px-3" value={actionFilter} onChange={e => { setActionFilter(e.target.value); setPage(1); }}>
+          <option value="">全部操作</option>
+          {ACTION_TYPES.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <button onClick={load} className="p-2 hover:bg-surface-hover rounded-lg text-content-tertiary"><RefreshCw className="w-4 h-4" /></button>
+      </div>
+      {loading ? <div className="text-center text-content-tertiary py-8">加载中...</div> : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead><tr className="text-content-tertiary border-b border-surface-border">
+              <th className="text-left py-2 px-3">时间</th>
+              <th className="text-left py-2 px-3">操作人</th>
+              <th className="text-left py-2 px-3">操作类型</th>
+              <th className="text-left py-2 px-3">目标用户</th>
+              <th className="text-left py-2 px-3">参数</th>
+              <th className="text-center py-2 px-3">结果</th>
+            </tr></thead>
+            <tbody>
+              {logs.map(l => (
+                <tr key={l.id} className="border-b border-surface-border hover:bg-surface-hover">
+                  <td className="py-2 px-3 text-content-tertiary">{new Date(l.created_at).toLocaleString('zh-CN')}</td>
+                  <td className="py-2 px-3 text-content">{l.admin_id}</td>
+                  <td className="py-2 px-3 text-content-secondary">{l.action_type}</td>
+                  <td className="py-2 px-3 text-content-tertiary">{l.target_user || '-'}</td>
+                  <td className="py-2 px-3 text-content-tertiary truncate max-w-[200px]" title={JSON.stringify(l.params)}>{JSON.stringify(l.params)?.slice(0, 50)}</td>
+                  <td className="py-2 px-3 text-center">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${l.result_success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                      {l.result_success ? '成功' : '失败'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {logs.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-content-tertiary">暂无操作日志</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <Pagination page={page} total={total} pageSize={20} onChange={setPage} />
     </div>
   );
 };
@@ -1069,28 +1397,27 @@ const RedemptionTab: React.FC<{ phone: string }> = ({ phone }) => {
 // 主页面
 // ============================================================
 const AdminPage: React.FC = () => {
-  const { userPhone, userEmail, isAdmin } = useGeneration();
-  const { t } = useTranslation('admin');
+  const { userPhone, userEmail, isAdmin, addNotification } = useGeneration();
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
 
   const TABS_DATA: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'overview', label: t('tabs.overview'), icon: <BarChart3 className="w-4 h-4" /> },
-    { id: 'users', label: t('tabs.users'), icon: <Users className="w-4 h-4" /> },
-    { id: 'orders', label: t('tabs.orders'), icon: <ShoppingCart className="w-4 h-4" /> },
-    { id: 'tasks', label: t('tabs.tasks'), icon: <Activity className="w-4 h-4" /> },
-    { id: 'subscriptions', label: t('tabs.subscriptions'), icon: <CreditCard className="w-4 h-4" /> },
-    { id: 'api_keys', label: t('tabs.api_keys'), icon: <Key className="w-4 h-4" /> },
-    { id: 'referrals', label: t('tabs.referrals'), icon: <Gift className="w-4 h-4" /> },
-    { id: 'redemption', label: t('tabs.redemption'), icon: <Ticket className="w-4 h-4" /> },
+    { id: 'overview', label: '概览', icon: <BarChart3 className="w-4 h-4" /> },
+    { id: 'users', label: '用户管理', icon: <Users className="w-4 h-4" /> },
+    { id: 'orders', label: '订单管理', icon: <ShoppingCart className="w-4 h-4" /> },
+    { id: 'tasks', label: '任务监控', icon: <Activity className="w-4 h-4" /> },
+    { id: 'subscriptions', label: '订阅管理', icon: <CreditCard className="w-4 h-4" /> },
+    { id: 'api_keys', label: 'API密钥', icon: <Key className="w-4 h-4" /> },
+    { id: 'referrals', label: '邀请返利', icon: <Gift className="w-4 h-4" /> },
+    { id: 'redemption', label: '兑换码', icon: <Ticket className="w-4 h-4" /> },
+    { id: 'audit_log', label: '操作日志', icon: <Shield className="w-4 h-4" /> },
   ];
 
-  // 管理员标识：优先 phone，其次 email
   const adminId = userPhone || userEmail || '';
 
   if (!isAdmin || !adminId) {
     return (
       <div className="flex-1 flex items-center justify-center text-content-tertiary">
-        {t('noAccess')}
+        无权限访问管理后台
       </div>
     );
   }
@@ -1098,20 +1425,21 @@ const AdminPage: React.FC = () => {
   const renderTab = () => {
     switch (activeTab) {
       case 'overview': return <OverviewTab phone={adminId} />;
-      case 'users': return <UsersTab phone={adminId} />;
-      case 'orders': return <OrdersTab phone={adminId} />;
+      case 'users': return <UsersTab phone={adminId} addNotification={addNotification} />;
+      case 'orders': return <OrdersTab phone={adminId} addNotification={addNotification} />;
       case 'tasks': return <TasksTab phone={adminId} />;
       case 'subscriptions': return <SubscriptionsTab phone={adminId} />;
-      case 'api_keys': return <ApiKeysTab phone={adminId} />;
+      case 'api_keys': return <ApiKeysTab phone={adminId} addNotification={addNotification} />;
       case 'referrals': return <ReferralsTab phone={adminId} />;
-      case 'redemption': return <RedemptionTab phone={adminId} />;
+      case 'redemption': return <RedemptionTab phone={adminId} addNotification={addNotification} />;
+      case 'audit_log': return <AuditLogTab phone={adminId} />;
     }
   };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="px-6 pt-6 pb-4 border-b border-surface-border">
-        <h1 className="text-xl font-bold text-content mb-4">{t('title')}</h1>
+        <h1 className="text-xl font-bold text-content mb-4">管理后台</h1>
         <div className="flex space-x-1">
           {TABS_DATA.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}

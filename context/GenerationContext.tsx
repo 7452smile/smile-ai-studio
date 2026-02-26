@@ -34,19 +34,24 @@ import {
     KlingDuration,
     KlingShotType,
     KlingMultiPromptItem,
+    KlingElement,
     MagnificScaleFactor,
     MagnificOptimizedFor,
     MagnificEngine,
     PrecisionScaleFactor,
     PrecisionFlavor
 } from '../types';
-import { generateSeedream, generateMinimaxVideo, generateWanVideo, generatePixVerseVideo, generateLtxVideo, generateRunwayVideo, generateKlingVideo, magnificUpscale, uploadImageToR2, subscribeToTask, unsubscribeFromTask, getTaskStatus, getUserCredits, subscribeToUserCredits, unsubscribeFromUserCredits, getSubscription, ensureProfile, capturePaypalOrder, supabase } from '../services/api';
+import { generateSeedream, generateMinimaxVideo, generateWanVideo, generatePixVerseVideo, generateLtxVideo, generateRunwayVideo, generateKlingVideo, magnificUpscale, uploadImageToR2, subscribeToTask, unsubscribeFromTask, getTaskStatus, getUserCredits, subscribeToUserCredits, unsubscribeFromUserCredits, getSubscription, ensureProfile, capturePaypalOrder, getHistory, deleteHistoryFromDB, supabase } from '../services/api';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { estimateCreditsCost } from '../services/creditsCost';
 import { ADMIN_PHONES, ADMIN_EMAILS } from '../constants';
 
-// 历史记录过期时间（1小时，因为 Freepik 链接1小时后失效）
-const HISTORY_EXPIRE_MS = 60 * 60 * 1000;
+// 根据订阅等级获取历史过期时间
+function getHistoryExpireMs(tier?: string): number {
+    if (tier === 'studio') return 30 * 24 * 60 * 60 * 1000;
+    if (tier === 'starter' || tier === 'advanced' || tier === 'flagship') return 7 * 24 * 60 * 60 * 1000;
+    return 24 * 60 * 60 * 1000; // 免费版 1 天
+}
 
 interface GenerationContextType {
     // State
@@ -180,8 +185,12 @@ interface GenerationContextType {
     setKlingSeed: (s: string) => void;
     klingEndImage: File | null;
     setKlingEndImage: (f: File | null) => void;
-    klingReferenceVideoUrl: string;
-    setKlingReferenceVideoUrl: (s: string) => void;
+    klingReferenceVideo: File | null;
+    setKlingReferenceVideo: (f: File | null) => void;
+    klingElements: KlingElement[];
+    setKlingElements: React.Dispatch<React.SetStateAction<KlingElement[]>>;
+    klingImageUrls: File[];
+    setKlingImageUrls: React.Dispatch<React.SetStateAction<File[]>>;
     klingMultiPromptEnabled: boolean;
     setKlingMultiPromptEnabled: (v: boolean) => void;
     klingMultiPrompts: KlingMultiPromptItem[];
@@ -486,6 +495,29 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
         return () => { supabase.removeChannel(channel); };
     }, [isLoggedIn, userId]);
 
+    // 登录后从数据库加载历史记录
+    useEffect(() => {
+        if (!isLoggedIn || !userId) return;
+        getHistory(userId, 50).then(items => {
+            if (!items.length) return;
+            const dbItems: GeneratedItem[] = items.map(item => ({
+                id: item.id,
+                type: item.task_type as 'image' | 'video',
+                url: item.result_url,
+                prompt: item.prompt,
+                model: item.model,
+                timestamp: new Date(item.created_at).getTime(),
+                status: 'completed' as const,
+            }));
+            setHistory(prev => {
+                const existingIds = new Set(prev.map(h => h.id));
+                const newItems = dbItems.filter(item => !existingIds.has(item.id));
+                if (!newItems.length) return prev;
+                return [...newItems, ...prev].sort((a, b) => b.timestamp - a.timestamp);
+            });
+        });
+    }, [isLoggedIn, userId]);
+
     // ============================================================
     // 图片创作参数
     // ============================================================
@@ -560,7 +592,9 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
     const [klingShotType, setKlingShotType] = useState<KlingShotType>('customize');
     const [klingSeed, setKlingSeed] = useState('');
     const [klingEndImage, setKlingEndImage] = useState<File | null>(null);
-    const [klingReferenceVideoUrl, setKlingReferenceVideoUrl] = useState('');
+    const [klingReferenceVideo, setKlingReferenceVideo] = useState<File | null>(null);
+    const [klingElements, setKlingElements] = useState<KlingElement[]>([]);
+    const [klingImageUrls, setKlingImageUrls] = useState<File[]>([]);
     const [klingMultiPromptEnabled, setKlingMultiPromptEnabled] = useState(false);
     const [klingMultiPrompts, setKlingMultiPrompts] = useState<KlingMultiPromptItem[]>([
         { prompt: '', duration: '5' }
@@ -626,7 +660,7 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
                 const parsed: GeneratedItem[] = JSON.parse(savedHistory);
                 const now = Date.now();
                 const filtered = parsed.filter(item =>
-                    (!item.status || item.status === 'completed') && (now - item.timestamp) < HISTORY_EXPIRE_MS
+                    (!item.status || item.status === 'completed') && (now - item.timestamp) < 30 * 24 * 60 * 60 * 1000
                 );
                 historyInitializedRef.current = true;
                 return filtered;
@@ -649,7 +683,7 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
                 const parsed: GeneratedItem[] = JSON.parse(savedPending);
                 // 过滤掉超过1小时的任务（可能已经失效）
                 const now = Date.now();
-                const filtered = parsed.filter(item => (now - item.timestamp) < HISTORY_EXPIRE_MS);
+                const filtered = parsed.filter(item => (now - item.timestamp) < 30 * 24 * 60 * 60 * 1000);
                 pendingInitializedRef.current = true;
                 return filtered;
             }
@@ -693,12 +727,13 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
 
     // 定时清理过期的历史记录（每分钟检查一次）
     useEffect(() => {
+        const expireMs = getHistoryExpireMs(userSubscription?.tier);
         const cleanupInterval = setInterval(() => {
             const now = Date.now();
-            setHistory(prev => prev.filter(item => (now - item.timestamp) < HISTORY_EXPIRE_MS));
+            setHistory(prev => prev.filter(item => (now - item.timestamp) < expireMs));
         }, 60000);
         return () => clearInterval(cleanupInterval);
-    }, []);
+    }, [userSubscription?.tier]);
 
     // 定时检查卡住的任务（每2分钟检查一次超过3分钟的任务）
     useEffect(() => {
@@ -780,6 +815,7 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
 
     const deleteHistoryItems = useCallback((ids: string[]) => {
         setHistory(prev => prev.filter(item => !ids.includes(item.id)));
+        deleteHistoryFromDB(ids);
         addNotification(i18next.t('common:generation.deleteSuccess'), i18next.t('common:generation.deleteSuccessDesc', { count: ids.length }), 'success');
     }, [addNotification]);
 
@@ -1632,7 +1668,7 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
 
                     // V2V 模式验证
                     const isKlingV2V = klingModelVersion === 'kling-3-omni-pro-v2v' || klingModelVersion === 'kling-3-omni-std-v2v';
-                    if (isKlingV2V && !klingReferenceVideoUrl) {
+                    if (isKlingV2V && !klingReferenceVideo) {
                         throw new Error(i18next.t('common:generation.klingV2VRequired'));
                     }
 
@@ -1648,6 +1684,37 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
                     if (klingEndImage && !isKlingV2V) {
                         addLog(i18next.t('common:generation.uploadingLastFrame'));
                         endImageUrl = await uploadImageToR2(klingEndImage);
+                    }
+
+                    // 上传 elements 图片到 R2（V2V 不支持）
+                    let uploadedElements: { reference_image_urls?: string[]; frontal_image_url?: string }[] = [];
+                    if (klingElements.length > 0 && !isKlingV2V) {
+                        addLog(i18next.t('common:generation.uploadingElements'));
+                        for (const el of klingElements) {
+                            const item: { reference_image_urls?: string[]; frontal_image_url?: string } = {};
+                            if (el.frontalImage) {
+                                item.frontal_image_url = await uploadImageToR2(el.frontalImage);
+                            }
+                            if (el.referenceImages.length > 0) {
+                                item.reference_image_urls = await Promise.all(el.referenceImages.map(f => uploadImageToR2(f)));
+                            }
+                            uploadedElements.push(item);
+                        }
+                    }
+
+                    // 上传 image_urls 图片到 R2（仅 Omni Pro/Std）
+                    const isKlingOmni = klingModelVersion === 'kling-3-omni-pro' || klingModelVersion === 'kling-3-omni-std';
+                    let uploadedImageUrls: string[] = [];
+                    if (klingImageUrls.length > 0 && isKlingOmni) {
+                        addLog(i18next.t('common:generation.uploadingImageUrls'));
+                        uploadedImageUrls = await Promise.all(klingImageUrls.map(f => uploadImageToR2(f)));
+                    }
+
+                    // 上传参考视频到 R2（V2V 模式）
+                    let uploadedReferenceVideoUrl: string | undefined;
+                    if (isKlingV2V && klingReferenceVideo) {
+                        addLog(i18next.t('common:generation.uploadingReferenceVideo'));
+                        uploadedReferenceVideoUrl = await uploadImageToR2(klingReferenceVideo);
                     }
 
                     // 准备 multi_prompt（如果启用）
@@ -1684,9 +1751,11 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
                         seed: klingSeed ? parseInt(klingSeed) : undefined,
                         start_image: startImageUrl,
                         end_image: endImageUrl,
-                        reference_video: isKlingV2V ? klingReferenceVideoUrl : undefined,
+                        reference_video: isKlingV2V ? uploadedReferenceVideoUrl : undefined,
                         multi_prompt: multiPromptData,
-                        generate_audio: klingGenerateAudio
+                        generate_audio: klingGenerateAudio,
+                        elements: uploadedElements.length > 0 ? uploadedElements : undefined,
+                        image_urls: uploadedImageUrls.length > 0 ? uploadedImageUrls : undefined,
                     });
 
                     if (!result.success) {
@@ -1931,7 +2000,7 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
             setLogs([]);
             addNotification(i18next.t('common:generation.generateFailed'), error.message || i18next.t('common:generation.unknownError'), 'error');
         }
-    }, [isLoggedIn, userId, userCredits, estimatedCost, activeMode, imageModel, imagePrompt, imageReferenceImages, imageSeed, imageAspectRatio, imageSafetyChecker, videoModel, videoPrompt, videoFirstFrame, minimaxModelVersion, minimaxResolution, minimaxDuration, minimaxPromptOptimizer, minimaxLastFrameImage, wanModelVersion, wanResolution, wanDuration, wanSize, wanNegativePrompt, wanEnablePromptExpansion, wanShotType, wanSeed, pixverseMode, pixverseResolution, pixverseDuration, pixverseNegativePrompt, pixverseStyle, pixverseSeed, pixverseLastFrameImage, ltxResolution, ltxDuration, ltxFps, ltxGenerateAudio, ltxSeed, runwayModelVersion, runwayRatio, runwayDuration, runwaySeed, klingModelVersion, klingDuration, klingAspectRatio, klingNegativePrompt, klingCfgScale, klingShotType, klingSeed, klingEndImage, klingReferenceVideoUrl, upscaleModel, upscaleImageFile, upscalePrompt, addNotification, addLog]);
+    }, [isLoggedIn, userId, userCredits, estimatedCost, activeMode, imageModel, imagePrompt, imageReferenceImages, imageSeed, imageAspectRatio, imageSafetyChecker, videoModel, videoPrompt, videoFirstFrame, minimaxModelVersion, minimaxResolution, minimaxDuration, minimaxPromptOptimizer, minimaxLastFrameImage, wanModelVersion, wanResolution, wanDuration, wanSize, wanNegativePrompt, wanEnablePromptExpansion, wanShotType, wanSeed, pixverseMode, pixverseResolution, pixverseDuration, pixverseNegativePrompt, pixverseStyle, pixverseSeed, pixverseLastFrameImage, ltxResolution, ltxDuration, ltxFps, ltxGenerateAudio, ltxSeed, runwayModelVersion, runwayRatio, runwayDuration, runwaySeed, klingModelVersion, klingDuration, klingAspectRatio, klingNegativePrompt, klingCfgScale, klingShotType, klingSeed, klingEndImage, klingReferenceVideo, klingElements, klingImageUrls, klingMultiPromptEnabled, klingMultiPrompts, klingGenerateAudio, upscaleModel, upscaleImageFile, upscalePrompt, addNotification, addLog]);
 
     const isAdmin = useMemo(() => {
         const phone = userPhone?.replace(/^\+86/, '') || '';
@@ -2006,7 +2075,9 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
         klingShotType, setKlingShotType,
         klingSeed, setKlingSeed,
         klingEndImage, setKlingEndImage,
-        klingReferenceVideoUrl, setKlingReferenceVideoUrl,
+        klingReferenceVideo, setKlingReferenceVideo,
+        klingElements, setKlingElements,
+        klingImageUrls, setKlingImageUrls,
         klingMultiPromptEnabled, setKlingMultiPromptEnabled,
         klingMultiPrompts, setKlingMultiPrompts,
         klingGenerateAudio, setKlingGenerateAudio,
@@ -2050,7 +2121,7 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
         pixverseMode, pixverseResolution, pixverseDuration, pixverseNegativePrompt, pixverseStyle, pixverseSeed, pixverseLastFrameImage,
         ltxResolution, ltxDuration, ltxFps, ltxGenerateAudio, ltxSeed,
         runwayModelVersion, runwayRatio, runwayDuration, runwaySeed,
-        klingModelVersion, klingDuration, klingAspectRatio, klingNegativePrompt, klingCfgScale, klingShotType, klingSeed, klingEndImage, klingReferenceVideoUrl, klingMultiPromptEnabled, klingMultiPrompts, klingGenerateAudio,
+        klingModelVersion, klingDuration, klingAspectRatio, klingNegativePrompt, klingCfgScale, klingShotType, klingSeed, klingEndImage, klingReferenceVideo, klingElements, klingImageUrls, klingMultiPromptEnabled, klingMultiPrompts, klingGenerateAudio,
         upscaleImageFile, upscaleImageDimensions, upscalePrompt,
         magnificScaleFactor, magnificOptimizedFor, magnificCreativity, magnificHdr, magnificResemblance, magnificFractality, magnificEngine,
         precisionScaleFactor, precisionFlavor, precisionSharpen, precisionSmartGrain, precisionUltraDetail,

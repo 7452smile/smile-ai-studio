@@ -8,6 +8,7 @@ export enum AppMode {
   ModelPricing = 'model-pricing',
   Referral = 'referral',
   ImageToPrompt = 'image-to-prompt',
+  CreditsHistory = 'credits-history',
 }
 
 export type ImageModelType = 'seedream' | 'banana';
@@ -71,6 +72,12 @@ export type KlingShotType = 'customize' | 'intelligent';
 export interface KlingMultiPromptItem {
   prompt: string;
   duration: string; // "3" - "15"
+}
+
+// Kling Element（角色/物体参考图）
+export interface KlingElement {
+  frontalImage: File | null;
+  referenceImages: File[];
 }
 
 // Freepik API 支持的宽高比
@@ -158,6 +165,23 @@ export interface ReferralReward {
   reward_type: 'signup' | 'commission';
   credits_amount: number;
   purchase_count?: number;
+  created_at: string;
+}
+
+// ============================================================
+// 积分流水类型
+// ============================================================
+
+export type CreditTransactionType = 'generation' | 'refund' | 'subscription' | 'referral_signup' | 'referral_commission' | 'redemption' | 'admin_adjust';
+
+export interface CreditTransaction {
+  id: string;
+  user_id: string;
+  transaction_type: CreditTransactionType;
+  amount: number;
+  balance_after: number;
+  description: string | null;
+  reference_id: string | null;
   created_at: string;
 }
 

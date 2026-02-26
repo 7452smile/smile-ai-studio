@@ -117,7 +117,7 @@ serve(async (req) => {
 
         // 计算积分并预扣用户积分
         const creditsCost = getLtxCreditsCost(resolution, duration);
-        const deductResult = await deductUserCreditsById(user_id, creditsCost);
+        const deductResult = await deductUserCreditsById(user_id, creditsCost, `LTX Video`);
         if (!deductResult.success) return jsonResponse({ error: deductResult.error }, 402);
 
         console.log("[ltx-video] Calling Freepik API:", endpoint);
@@ -130,13 +130,13 @@ serve(async (req) => {
         }));
 
         if (!result.success) {
-            await refundUserCreditsById(user_id, creditsCost);
+            await refundUserCreditsById(user_id, creditsCost, undefined, "LTX Video");
             return jsonResponse({ error: result.error }, 500);
         }
 
         const freepikTaskId = result.data?.data?.task_id;
         if (!freepikTaskId) {
-            await refundUserCreditsById(user_id, creditsCost);
+            await refundUserCreditsById(user_id, creditsCost, undefined, "LTX Video");
             return jsonResponse({ error: "未获取到任务 ID" }, 500);
         }
 

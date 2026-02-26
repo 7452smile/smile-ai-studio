@@ -109,7 +109,7 @@ serve(async (req) => {
 
         // 计算积分并预扣用户积分
         const creditsCost = getMinimaxCreditsCost(resolution, duration);
-        const deductResult = await deductUserCreditsById(user_id, creditsCost);
+        const deductResult = await deductUserCreditsById(user_id, creditsCost, "Minimax Video");
         if (!deductResult.success) return jsonResponse({ error: deductResult.error }, 402);
 
         console.log("[minimax-video] Calling Freepik API:", endpoint);
@@ -122,13 +122,13 @@ serve(async (req) => {
         }));
 
         if (!result.success) {
-            await refundUserCreditsById(user_id, creditsCost);
+            await refundUserCreditsById(user_id, creditsCost, undefined, "Minimax Video");
             return jsonResponse({ error: result.error }, 500);
         }
 
         const freepikTaskId = result.data?.data?.task_id;
         if (!freepikTaskId) {
-            await refundUserCreditsById(user_id, creditsCost);
+            await refundUserCreditsById(user_id, creditsCost, undefined, "Minimax Video");
             return jsonResponse({ error: "未获取到任务 ID" }, 500);
         }
 

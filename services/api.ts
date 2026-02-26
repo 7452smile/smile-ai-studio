@@ -1,7 +1,7 @@
 // Supabase API 服务
 import { createClient, RealtimeChannel } from '@supabase/supabase-js';
 import i18next from 'i18next';
-import { AspectRatio, MinimaxResolution, MinimaxDuration, WanResolution, WanDuration, WanSize720p, WanSize1080p, WanShotType, PixVerseMode, PixVerseResolution, PixVerseDuration, PixVerseStyle, LtxResolution, LtxDuration, LtxFps, RunwayRatio, RunwayDuration, KlingModelVersion, KlingAspectRatio, KlingDuration, KlingShotType, KlingMultiPromptItem, MagnificScaleFactor, MagnificOptimizedFor, MagnificEngine, PrecisionScaleFactor, PrecisionFlavor, SubscriptionTier, BillingCycle, UserSubscription, ReferralInfo } from '../types';
+import { AspectRatio, MinimaxResolution, MinimaxDuration, WanResolution, WanDuration, WanSize720p, WanSize1080p, WanShotType, PixVerseMode, PixVerseResolution, PixVerseDuration, PixVerseStyle, LtxResolution, LtxDuration, LtxFps, RunwayRatio, RunwayDuration, KlingModelVersion, KlingAspectRatio, KlingDuration, KlingShotType, KlingMultiPromptItem, MagnificScaleFactor, MagnificOptimizedFor, MagnificEngine, PrecisionScaleFactor, PrecisionFlavor, SubscriptionTier, BillingCycle, UserSubscription, ReferralInfo, CreditTransaction } from '../types';
 
 const SUPABASE_URL = 'https://ncdlejeiqyhfauxkwred.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5jZGxlamVpcXloZmF1eGt3cmVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzNjA1MzQsImV4cCI6MjA4NTkzNjUzNH0.wznPXmHM-oVtuFy6PYS6ELy4GMr1k7_EDNkZJLhOXLw';
@@ -517,6 +517,8 @@ export interface KlingVideoParams {
     end_image?: string; // I2V 尾帧图片
     reference_video?: string; // V2V 参考视频 URL
     multi_prompt?: KlingMultiPromptItem[] | string[]; // 多镜头提示词
+    elements?: { reference_image_urls?: string[]; frontal_image_url?: string }[];
+    image_urls?: string[];
 }
 
 export async function generateKlingVideo(params: KlingVideoParams): Promise<{
@@ -926,5 +928,73 @@ export async function getReferralInfo(userId: string): Promise<ReferralInfo | nu
         };
     } catch {
         return null;
+    }
+}
+
+// ============================================================
+// 历史记录
+// ============================================================
+
+export async function getHistory(userId: string, limit = 50, offset = 0): Promise<{ id: string; task_type: string; result_url: string; prompt: string; model: string; created_at: string; credits_cost: number }[]> {
+    try {
+        const response = await fetch(`${FUNCTIONS_URL}/get-history`, {
+            method: 'POST',
+            headers: await getAuthHeaders(),
+            body: JSON.stringify({ user_id: userId, limit, offset })
+        });
+        const data = await response.json();
+        return data.success ? data.items : [];
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * 删除历史记录（软删除：清空 result_url 使其不再出现在历史列表）
+ */
+export async function deleteHistoryFromDB(ids: string[]): Promise<boolean> {
+    try {
+        const { error } = await supabase
+            .from('generation_tasks')
+            .update({ result_url: null })
+            .in('id', ids);
+        return !error;
+    } catch {
+        return false;
+    }
+}
+
+// ============================================================
+// 积分流水
+// ============================================================
+
+export async function getCreditTransactions(userId: string, limit = 20, offset = 0, type?: string): Promise<{ items: CreditTransaction[]; total: number }> {
+    try {
+        const response = await fetch(`${FUNCTIONS_URL}/get-credit-transactions`, {
+            method: 'POST',
+            headers: await getAuthHeaders(),
+            body: JSON.stringify({ user_id: userId, limit, offset, type: type || undefined })
+        });
+        const data = await response.json();
+        return data.success ? { items: data.items, total: data.total } : { items: [], total: 0 };
+    } catch {
+        return { items: [], total: 0 };
+    }
+}
+
+/**
+ * 获取 R2 文件的下载 URL（presigned，带 Content-Disposition: attachment）
+ */
+export async function getDownloadUrl(url: string, filename: string): Promise<string> {
+    try {
+        const response = await fetch(`${FUNCTIONS_URL}/get-download-url`, {
+            method: 'POST',
+            headers: await getAuthHeaders(),
+            body: JSON.stringify({ url, filename, user_id: getUserIdFromSession() })
+        });
+        const data = await response.json();
+        return data.download_url || url;
+    } catch {
+        return url;
     }
 }

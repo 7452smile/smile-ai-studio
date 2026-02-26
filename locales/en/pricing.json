@@ -39,7 +39,7 @@
     "studio": { "name": "Studio" }
   },
   "tierFeatures": {
-    "free": ["188 credits on signup", "Daily login +10 (max 200)", "All models"],
+    "free": ["188 credits on signup", "All models"],
     "starter": ["2,000 credits/mo", "3 image + 1 video concurrent", "All models"],
     "advanced": ["6,000 credits/mo", "5 image + 5 video concurrent", "All models"],
     "flagship": ["15,000 credits/mo", "Unlimited concurrent", "7-day history", "Early access"],
@@ -53,9 +53,9 @@
     "studio": "Unlimited"
   },
   "tierHistory": {
-    "free": "1 hour",
-    "starter": "1 hour",
-    "advanced": "1 hour",
+    "free": "1 day",
+    "starter": "7 days",
+    "advanced": "7 days",
     "flagship": "7 days",
     "studio": "30 days"
   },

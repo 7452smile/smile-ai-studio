@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Download, ExternalLink, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import { getDownloadUrl } from '../services/api';
 
 interface LightboxProps {
     item: { url: string; type: 'image' | 'video' } | null;
@@ -20,54 +21,19 @@ const Lightbox: React.FC<LightboxProps> = ({ item, onClose }) => {
 
         setDownloading(true);
         try {
-            // 尝试 fetch 下载
-            const response = await fetch(item.url, { mode: 'cors', credentials: 'omit' });
-            if (!response.ok) throw new Error('Download failed');
+            const ext = item.type === 'video' ? 'mp4' : 'png';
+            const filename = `smile-ai-${Date.now()}.${ext}`;
+            const downloadUrl = await getDownloadUrl(item.url, filename);
 
-            const blob = await response.blob();
-            const blobUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
-            link.href = blobUrl;
-            link.download = `smile-ai-${Date.now()}.${item.type === 'video' ? 'mp4' : 'png'}`;
+            link.href = downloadUrl;
+            link.download = filename;
+            link.rel = 'noopener noreferrer';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            URL.revokeObjectURL(blobUrl);
         } catch {
-            // 备选方案：canvas 方式
-            if (item.type === 'image') {
-                try {
-                    const img = new Image();
-                    img.crossOrigin = 'anonymous';
-                    await new Promise<void>((resolve, reject) => {
-                        img.onload = () => resolve();
-                        img.onerror = () => reject();
-                        img.src = item.url;
-                    });
-
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.naturalWidth;
-                    canvas.height = img.naturalHeight;
-                    canvas.getContext('2d')?.drawImage(img, 0, 0);
-
-                    canvas.toBlob((blob) => {
-                        if (blob) {
-                            const blobUrl = URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = blobUrl;
-                            link.download = `smile-ai-${Date.now()}.png`;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            URL.revokeObjectURL(blobUrl);
-                        }
-                    }, 'image/png');
-                } catch {
-                    window.open(item.url, '_blank');
-                }
-            } else {
-                window.open(item.url, '_blank');
-            }
+            window.open(item.url, '_blank');
         } finally {
             setDownloading(false);
         }

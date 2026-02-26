@@ -54,18 +54,19 @@ serve(async (req) => {
         if (!concurrency.allowed) return jsonResponse({ error: concurrency.reason }, 429);
 
         // 预扣用户积分
-        const deductResult = await deductUserCreditsById(user_id, SEEDREAM_CREDITS_COST);
+        const modelDesc = isImageToImage ? "Seedream 4.5 Edit" : "Seedream 4.5";
+        const deductResult = await deductUserCreditsById(user_id, SEEDREAM_CREDITS_COST, modelDesc);
         if (!deductResult.success) return jsonResponse({ error: deductResult.error }, 402);
 
         const result = await callFreepikApi(endpoint, "POST", requestBody);
         if (!result.success) {
-            await refundUserCreditsById(user_id, SEEDREAM_CREDITS_COST);
+            await refundUserCreditsById(user_id, SEEDREAM_CREDITS_COST, undefined, modelDesc);
             return jsonResponse({ error: result.error }, 500);
         }
 
         const freepikTaskId = result.data?.data?.task_id;
         if (!freepikTaskId) {
-            await refundUserCreditsById(user_id, SEEDREAM_CREDITS_COST);
+            await refundUserCreditsById(user_id, SEEDREAM_CREDITS_COST, undefined, modelDesc);
             return jsonResponse({ error: "未获取到任务 ID" }, 500);
         }
 

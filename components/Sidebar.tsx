@@ -13,7 +13,8 @@ import {
   Shield,
   Calculator,
   Gift,
-  Ticket
+  Ticket,
+  Receipt
 } from 'lucide-react';
 
 import { useGeneration } from '../context/GenerationContext';
@@ -139,6 +140,10 @@ const Sidebar: React.FC = memo(() => {
 
   const handleReferralClick = useCallback(() => {
     setMode(AppMode.Referral);
+  }, [setMode]);
+
+  const handleCreditsHistoryClick = useCallback(() => {
+    setMode(AppMode.CreditsHistory);
   }, [setMode]);
 
   const handleAdminClick = useCallback(() => {
@@ -284,6 +289,15 @@ const Sidebar: React.FC = memo(() => {
           onClick={handleReferralClick}
           icon={<Gift className="w-[18px] h-[18px]" />}
           label={t('nav.referral')}
+        />
+
+        {/* CREDITS HISTORY */}
+        <NavButton
+          isActive={currentMode === AppMode.CreditsHistory}
+          isExpanded={false}
+          onClick={handleCreditsHistoryClick}
+          icon={<Receipt className="w-[18px] h-[18px]" />}
+          label={t('nav.creditsHistory')}
         />
       </nav>
 

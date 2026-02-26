@@ -25,13 +25,13 @@ serve(async (req) => {
         if (!concurrency.allowed) return jsonResponse({ error: concurrency.reason }, 429);
 
         // 预扣用户积分
-        const deductResult = await deductUserCreditsById(user_id, REMOVE_BG_CREDITS_COST);
+        const deductResult = await deductUserCreditsById(user_id, REMOVE_BG_CREDITS_COST, "Remove Background");
         if (!deductResult.success) return jsonResponse({ error: deductResult.error }, 402);
 
         // 获取可用的 API Key
         const apiKey = await getAvailableApiKey();
         if (!apiKey) {
-            await refundUserCreditsById(user_id, REMOVE_BG_CREDITS_COST);
+            await refundUserCreditsById(user_id, REMOVE_BG_CREDITS_COST, undefined, "Remove Background");
             return jsonResponse({ error: "服务暂时不可用" }, 500);
         }
 
@@ -60,7 +60,7 @@ serve(async (req) => {
             await deleteImageFromR2(imageUrl);
 
             if (!response.ok) {
-                await refundUserCreditsById(user_id, REMOVE_BG_CREDITS_COST);
+                await refundUserCreditsById(user_id, REMOVE_BG_CREDITS_COST, undefined, "Remove Background");
                 return jsonResponse({ error: result.message || "抠图失败" }, 500);
             }
 
@@ -81,7 +81,7 @@ serve(async (req) => {
         } catch (apiError) {
             // 确保清理 R2 临时图片
             await deleteImageFromR2(imageUrl);
-            await refundUserCreditsById(user_id, REMOVE_BG_CREDITS_COST);
+            await refundUserCreditsById(user_id, REMOVE_BG_CREDITS_COST, undefined, "Remove Background");
             throw apiError;
         }
 
