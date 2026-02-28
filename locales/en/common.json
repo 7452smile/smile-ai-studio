@@ -129,7 +129,15 @@
     "upscaleFailedDesc": "Processing failed",
     "usingModel": "Using {{model}}...",
     "creativeMagnific": "Magnific Creative Upscale",
-    "precisionMagnific": "Magnific Precision Upscale"
+    "precisionMagnific": "Magnific Precision Upscale",
+    "ttsGenerating": "Speech is being generated, will display when done",
+    "ttsReady": "Your audio is ready!",
+    "musicGenerating": "Music is being generated, please wait...",
+    "musicReady": "Your music is ready!",
+    "soundEffectGenerating": "Sound effect is being generated, please wait...",
+    "soundEffectReady": "Your sound effect is ready!",
+    "enterTtsText": "Please enter text to convert",
+    "selectVoice": "Please select a voice"
   },
   "removeBg": {
     "title": "Background Removal",

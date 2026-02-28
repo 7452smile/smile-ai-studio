@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Image as ImageIcon, Video, Maximize, Scissors, ChevronDown, ChevronRight, Zap } from 'lucide-react';
+import { Image as ImageIcon, Video, Maximize, Scissors, ChevronDown, ChevronRight, Zap, Volume2, Music } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
   SEEDREAM_CREDITS_COST,
   REMOVE_BG_CREDITS_COST,
+  TTS_CREDITS_PER_1000_CHARS,
+  MUSIC_CREDITS_PER_SECOND,
   getMinimaxCreditsCost,
   getWanCreditsCost,
   getPixVerseCreditsCost,
@@ -208,6 +210,30 @@ const ModelPricingPage: React.FC = () => {
             ]}
           />
           <p className="text-xs text-content-tertiary mt-3">{mp('removeBgNote').replace('{{cost}}', String(REMOVE_BG_CREDITS_COST))}</p>
+        </section>
+
+        {/* TTS */}
+        <section>
+          <SectionTitle icon={<Volume2 className="w-4 h-4 text-pink-400" />} title={mp('tabs.tts')} />
+          <PricingTable creditLabel={creditLabel}
+            headers={[h('model'), h('billingRule'), h('credits')]}
+            rows={[
+              ['ElevenLabs Turbo v2.5', mp('ttsRule'), TTS_CREDITS_PER_1000_CHARS],
+            ]}
+          />
+          <p className="text-xs text-content-tertiary mt-3">{mp('ttsNote')}</p>
+        </section>
+
+        {/* Music Generation */}
+        <section>
+          <SectionTitle icon={<Music className="w-4 h-4 text-violet-400" />} title={mp('tabs.music')} />
+          <PricingTable creditLabel={creditLabel}
+            headers={[h('model'), h('billingRule'), h('credits')]}
+            rows={[
+              ['Freepik Music Generation', mp('musicRule'), MUSIC_CREDITS_PER_SECOND],
+            ]}
+          />
+          <p className="text-xs text-content-tertiary mt-3">{mp('musicNote')}</p>
         </section>
       </div>
     </div>

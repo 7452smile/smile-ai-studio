@@ -10,6 +10,8 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "
 const MODEL_GET_ENDPOINTS: Record<string, string> = {
     "seedream": "/v1/ai/text-to-image/seedream-v4-5",
     "seedream-edit": "/v1/ai/text-to-image/seedream-v4-5-edit",
+    "banana": "/v1/ai/text-to-image/nano-banana-pro",
+    "banana-edit": "/v1/ai/text-to-image/nano-banana-pro",
     "minimax-768p": "/v1/ai/image-to-video/minimax-hailuo-02-768p",
     "minimax-1080p": "/v1/ai/image-to-video/minimax-hailuo-02-1080p",
     // Wan T2V
@@ -48,7 +50,13 @@ const MODEL_GET_ENDPOINTS: Record<string, string> = {
     "kling-3-omni-std-v2v": "/v1/ai/video/kling-v3-omni",
     // Magnific 高清放大
     "magnific-creative": "/v1/ai/image-upscaler",
-    "magnific-precision": "/v1/ai/image-upscaler-precision-v2"
+    "magnific-precision": "/v1/ai/image-upscaler-precision-v2",
+    // TTS
+    "elevenlabs-tts": "/v1/ai/voiceover/elevenlabs-turbo-v2-5",
+    // Music
+    "music-generation": "/v1/ai/music-generation",
+    // Sound Effect
+    "sound-effect": "/v1/ai/sound-effects"
 };
 
 // 根据任务获取正确的 GET 端点
@@ -170,7 +178,7 @@ serve(async (req) => {
             if (resultUrl) {
                 try {
                     const prefix = await getR2PrefixForUser(supabase, task.user_id);
-                    const ext = task.task_type === "video" ? "mp4" : "png";
+                    const ext = task.task_type === "video" ? "mp4" : task.task_type === "audio" ? "mp3" : "png";
                     resultUrl = await downloadAndUploadToR2(resultUrl, `${task.id}.${ext}`, prefix);
                     console.log("[freepik-webhook] Saved to R2:", resultUrl);
                 } catch (e) {

@@ -267,6 +267,40 @@ export async function generateSeedream(params: SeedreamParams): Promise<{
 }
 
 // ============================================================
+// Banana Pro 图片生成
+// ============================================================
+
+export async function generateBanana(params: SeedreamParams): Promise<{
+    success: boolean;
+    task_id?: string;
+    freepik_task_id?: string;
+    error?: string;
+    remaining_credits?: number;
+}> {
+    try {
+        const response = await fetch(`${FUNCTIONS_URL}/banana-generate`, {
+            method: 'POST',
+            headers: await getAuthHeaders(),
+            body: JSON.stringify(params)
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            return { success: false, error: data.error || i18next.t('common:api.requestFailed') };
+        }
+
+        return {
+            success: true,
+            task_id: data.task_id,
+            freepik_task_id: data.freepik_task_id,
+            remaining_credits: data.remaining_credits
+        };
+    } catch (err: any) {
+        return { success: false, error: err.message || i18next.t('common:api.networkError') };
+    }
+}
+
+// ============================================================
 // Minimax（海螺）视频生成
 // ============================================================
 
@@ -869,6 +903,128 @@ export async function improvePrompt(prompt: string, modality: 'image' | 'video')
         return response.json();
     } catch {
         return { success: false, error: i18next.t('common:api.networkError') };
+    }
+}
+
+// ============================================================
+// TTS 文字转语音
+// ============================================================
+
+export interface TTSParams {
+    user_id?: string;
+    text: string;
+    voice_id: string;
+    stability?: number;
+    similarity_boost?: number;
+    speed?: number;
+    use_speaker_boost?: boolean;
+}
+
+export async function generateTTS(params: TTSParams): Promise<{
+    success: boolean;
+    task_id?: string;
+    freepik_task_id?: string;
+    error?: string;
+    remaining_credits?: number;
+}> {
+    try {
+        const response = await fetch(`${FUNCTIONS_URL}/tts-generate`, {
+            method: 'POST',
+            headers: await getAuthHeaders(),
+            body: JSON.stringify(params)
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            return { success: false, error: data.error || i18next.t('common:api.requestFailed') };
+        }
+        return {
+            success: true,
+            task_id: data.task_id,
+            freepik_task_id: data.freepik_task_id,
+            remaining_credits: data.remaining_credits
+        };
+    } catch (err: any) {
+        return { success: false, error: err.message || i18next.t('common:api.networkError') };
+    }
+}
+
+// ============================================================
+// 音乐生成
+// ============================================================
+
+export interface MusicParams {
+    user_id?: string;
+    prompt: string;
+    music_length_seconds: number;
+}
+
+export async function generateMusic(params: MusicParams): Promise<{
+    success: boolean;
+    task_id?: string;
+    freepik_task_id?: string;
+    error?: string;
+    remaining_credits?: number;
+}> {
+    try {
+        const response = await fetch(`${FUNCTIONS_URL}/music-generate`, {
+            method: 'POST',
+            headers: await getAuthHeaders(),
+            body: JSON.stringify(params)
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            return { success: false, error: data.error || i18next.t('common:api.requestFailed') };
+        }
+        return {
+            success: true,
+            task_id: data.task_id,
+            freepik_task_id: data.freepik_task_id,
+            remaining_credits: data.remaining_credits
+        };
+    } catch (err: any) {
+        return { success: false, error: err.message || i18next.t('common:api.networkError') };
+    }
+}
+
+// ============================================================
+// 音效生成
+// ============================================================
+
+export interface SoundEffectParams {
+    user_id?: string;
+    text: string;
+    duration_seconds?: number;
+    loop?: boolean;
+    prompt_influence?: number;
+}
+
+export async function generateSoundEffect(params: SoundEffectParams): Promise<{
+    success: boolean;
+    task_id?: string;
+    freepik_task_id?: string;
+    error?: string;
+    remaining_credits?: number;
+    translated_text?: string;
+}> {
+    try {
+        const response = await fetch(`${FUNCTIONS_URL}/sound-generate`, {
+            method: 'POST',
+            headers: await getAuthHeaders(),
+            body: JSON.stringify(params)
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            return { success: false, error: data.error || i18next.t('common:api.requestFailed') };
+        }
+        return {
+            success: true,
+            task_id: data.task_id,
+            freepik_task_id: data.freepik_task_id,
+            remaining_credits: data.remaining_credits,
+            translated_text: data.translated_text
+        };
+    } catch (err: any) {
+        return { success: false, error: err.message || i18next.t('common:api.networkError') };
     }
 }
 

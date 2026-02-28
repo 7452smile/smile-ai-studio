@@ -22,6 +22,7 @@ import {
 // ============================================================
 
 export const SEEDREAM_CREDITS_COST = 4;
+export const BANANA_CREDITS_COST = 20;
 
 // ============================================================
 // 视频生成
@@ -123,6 +124,34 @@ export function getUpscaleCreditsCost(imageWidth: number, imageHeight: number, s
 export const REMOVE_BG_CREDITS_COST = 2;
 
 // ============================================================
+// TTS 文字转语音
+// ============================================================
+
+export const TTS_CREDITS_PER_1000_CHARS = 5;
+
+export function getTTSCreditsCost(textLength: number): number {
+    if (textLength <= 0) return 0;
+    return Math.ceil(textLength / 1000) * TTS_CREDITS_PER_1000_CHARS;
+}
+
+// ============================================================
+// 音乐生成
+// ============================================================
+
+export const MUSIC_CREDITS_PER_SECOND = 1;
+
+export function getMusicCreditsCost(seconds: number): number {
+    if (seconds <= 0) return 0;
+    return seconds * MUSIC_CREDITS_PER_SECOND;
+}
+
+export const SOUND_EFFECT_CREDITS_COST = 2;
+
+export function getSoundEffectCreditsCost(): number {
+    return SOUND_EFFECT_CREDITS_COST;
+}
+
+// ============================================================
 // 通用估算入口
 // ============================================================
 
@@ -149,12 +178,19 @@ export interface CreditsCostParams {
     imageWidth?: number;
     imageHeight?: number;
     scaleFactor?: number;
+    // TTS
+    ttsTextLength?: number;
+    // Music
+    musicLengthSeconds?: number;
+    // Sound Effect
+    soundEffectDuration?: number;
 }
 
 export function estimateCreditsCost(params: CreditsCostParams): number {
     const { mode } = params;
 
     if (mode === AppMode.ImageCreation) {
+        if (params.imageModel === 'banana') return BANANA_CREDITS_COST;
         return SEEDREAM_CREDITS_COST;
     }
 
@@ -189,6 +225,18 @@ export function estimateCreditsCost(params: CreditsCostParams): number {
             default:
                 return 0;
         }
+    }
+
+    if (mode === AppMode.TextToSpeech) {
+        return getTTSCreditsCost(params.ttsTextLength || 0);
+    }
+
+    if (mode === AppMode.MusicGeneration) {
+        return getMusicCreditsCost(params.musicLengthSeconds || 0);
+    }
+
+    if (mode === AppMode.SoundEffect) {
+        return getSoundEffectCreditsCost();
     }
 
     return 0;

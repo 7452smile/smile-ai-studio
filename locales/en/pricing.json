@@ -85,7 +85,9 @@
       "image": "Image",
       "video": "Video",
       "upscale": "Upscale",
-      "removebg": "Remove BG"
+      "removebg": "Remove BG",
+      "tts": "Text to Speech",
+      "music": "Music Generation"
     },
     "headers": {
       "model": "Model",
@@ -96,11 +98,16 @@
       "version": "Version",
       "audio": "Audio",
       "outputSize": "Output Size",
-      "operation": "Operation"
+      "operation": "Operation",
+      "billingRule": "Billing"
     },
     "comingSoon": "Coming Soon",
     "magnificNote": "Magnific Official API — 1/10 of official price",
     "removeBgNote": "Fixed {{cost}} credits/image, any size.",
+    "ttsRule": "Per 1000 chars",
+    "ttsNote": "5 credits per 1000 characters (rounded up), max 40000 characters per request.",
+    "musicRule": "Per second",
+    "musicNote": "1 credit per second, duration range 10-240 seconds. Prompts must be in English; Chinese input will be auto-translated.",
     "billingRule": "Billing Rule",
     "perSecond": "credits/sec",
     "withAudio": "w/ audio",

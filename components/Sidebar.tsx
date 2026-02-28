@@ -14,7 +14,8 @@ import {
   Calculator,
   Gift,
   Ticket,
-  Receipt
+  Receipt,
+  Volume2
 } from 'lucide-react';
 
 import { useGeneration } from '../context/GenerationContext';
@@ -97,6 +98,7 @@ const Sidebar: React.FC = memo(() => {
   useEffect(() => {
     if (currentMode === AppMode.ImageCreation || currentMode === AppMode.ImageToPrompt) setExpandedSection(AppMode.ImageCreation);
     else if (currentMode === AppMode.VideoGeneration) setExpandedSection(AppMode.VideoGeneration);
+    else if (currentMode === AppMode.TextToSpeech || currentMode === AppMode.SoundEffect || currentMode === AppMode.MusicGeneration) setExpandedSection(AppMode.TextToSpeech);
     else setExpandedSection(null);
   }, [currentMode]);
 
@@ -145,6 +147,18 @@ const Sidebar: React.FC = memo(() => {
   const handleCreditsHistoryClick = useCallback(() => {
     setMode(AppMode.CreditsHistory);
   }, [setMode]);
+
+  const handleTTSClick = useCallback(() => {
+    setMode(AppMode.TextToSpeech);
+  }, [setMode]);
+
+  const handleAudioModeClick = useCallback((mode: AppMode) => {
+    if (currentMode === AppMode.TextToSpeech || currentMode === AppMode.SoundEffect || currentMode === AppMode.MusicGeneration) {
+      setExpandedSection(prev => prev === AppMode.TextToSpeech ? null : AppMode.TextToSpeech);
+    } else {
+      setMode(AppMode.TextToSpeech);
+    }
+  }, [currentMode, setMode]);
 
   const handleAdminClick = useCallback(() => {
     setMode(AppMode.Admin);
@@ -242,6 +256,38 @@ const Sidebar: React.FC = memo(() => {
                   label={model.label}
                 />
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* AUDIO WORKSHOP */}
+        <div className="space-y-0.5">
+          <NavButton
+            isActive={currentMode === AppMode.TextToSpeech || currentMode === AppMode.SoundEffect || currentMode === AppMode.MusicGeneration}
+            isExpanded={expandedSection === AppMode.TextToSpeech}
+            onClick={handleAudioModeClick}
+            icon={<Volume2 className="w-[18px] h-[18px]" />}
+            label={t('nav.audioWorkshop')}
+            hasSubmenu
+          />
+
+          {expandedSection === AppMode.TextToSpeech && (
+            <div className="pl-10 pr-2 space-y-0.5 py-1">
+              <SubMenuItem
+                isActive={currentMode === AppMode.TextToSpeech}
+                onClick={handleTTSClick}
+                label={t('nav.tts')}
+              />
+              <SubMenuItem
+                isActive={currentMode === AppMode.SoundEffect}
+                onClick={() => setMode(AppMode.SoundEffect)}
+                label={t('nav.soundEffect')}
+              />
+              <SubMenuItem
+                isActive={currentMode === AppMode.MusicGeneration}
+                onClick={() => setMode(AppMode.MusicGeneration)}
+                label={t('nav.musicGeneration')}
+              />
             </div>
           )}
         </div>

@@ -41,7 +41,7 @@ import {
     PrecisionScaleFactor,
     PrecisionFlavor
 } from '../types';
-import { generateSeedream, generateMinimaxVideo, generateWanVideo, generatePixVerseVideo, generateLtxVideo, generateRunwayVideo, generateKlingVideo, magnificUpscale, uploadImageToR2, subscribeToTask, unsubscribeFromTask, getTaskStatus, getUserCredits, subscribeToUserCredits, unsubscribeFromUserCredits, getSubscription, ensureProfile, capturePaypalOrder, getHistory, deleteHistoryFromDB, supabase } from '../services/api';
+import { generateSeedream, generateBanana, generateMinimaxVideo, generateWanVideo, generatePixVerseVideo, generateLtxVideo, generateRunwayVideo, generateKlingVideo, magnificUpscale, generateTTS, generateMusic, generateSoundEffect, uploadImageToR2, subscribeToTask, unsubscribeFromTask, getTaskStatus, getUserCredits, subscribeToUserCredits, unsubscribeFromUserCredits, getSubscription, ensureProfile, capturePaypalOrder, getHistory, deleteHistoryFromDB, supabase } from '../services/api';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { estimateCreditsCost } from '../services/creditsCost';
 import { ADMIN_PHONES, ADMIN_EMAILS } from '../constants';
@@ -231,6 +231,38 @@ interface GenerationContextType {
     precisionUltraDetail: number;
     setPrecisionUltraDetail: (v: number) => void;
 
+    // TTS 参数
+    ttsText: string;
+    setTtsText: (s: string) => void;
+    ttsVoiceId: string;
+    setTtsVoiceId: (s: string) => void;
+    ttsStability: number;
+    setTtsStability: (v: number) => void;
+    ttsSimilarityBoost: number;
+    setTtsSimilarityBoost: (v: number) => void;
+    ttsSpeed: number;
+    setTtsSpeed: (v: number) => void;
+    ttsSpeakerBoost: boolean;
+    setTtsSpeakerBoost: (v: boolean) => void;
+
+    // Music 参数
+    musicPrompt: string;
+    setMusicPrompt: (s: string) => void;
+    musicLengthSeconds: number;
+    setMusicLengthSeconds: (v: number) => void;
+
+    // Sound Effect 参数
+    sfxText: string;
+    setSfxText: (s: string) => void;
+    sfxDuration: number;
+    setSfxDuration: (v: number) => void;
+    sfxLoop: boolean;
+    setSfxLoop: (v: boolean) => void;
+    sfxPromptInfluence: number;
+    setSfxPromptInfluence: (v: number) => void;
+    sfxTranslatedText: string;
+    setSfxTranslatedText: (s: string) => void;
+
     // Actions
     handleGenerate: () => Promise<void>;
     addNotification: (title: string, message: string, type: 'info' | 'success' | 'error') => void;
@@ -239,8 +271,8 @@ interface GenerationContextType {
     goHome: () => void;
     showLanding: boolean;
     setShowLanding: (show: boolean) => void;
-    lightboxItem: { url: string; type: 'image' | 'video' } | null;
-    setLightboxItem: (item: { url: string; type: 'image' | 'video' } | null) => void;
+    lightboxItem: { url: string; type: 'image' | 'video' | 'audio' } | null;
+    setLightboxItem: (item: { url: string; type: 'image' | 'video' | 'audio' } | null) => void;
     deleteHistoryItems: (ids: string[]) => void;
     applyHistoryParams: (item: GeneratedItem) => void;
     cancelPendingTask: (taskId: string) => void;
@@ -601,6 +633,25 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
     ]);
     const [klingGenerateAudio, setKlingGenerateAudio] = useState(true);
 
+    // TTS 参数
+    const [ttsText, setTtsText] = useState('');
+    const [ttsVoiceId, setTtsVoiceId] = useState('');
+    const [ttsStability, setTtsStability] = useState(0.5);
+    const [ttsSimilarityBoost, setTtsSimilarityBoost] = useState(0.2);
+    const [ttsSpeed, setTtsSpeed] = useState(1.0);
+    const [ttsSpeakerBoost, setTtsSpeakerBoost] = useState(true);
+
+    // Music 参数
+    const [musicPrompt, setMusicPrompt] = useState('');
+    const [musicLengthSeconds, setMusicLengthSeconds] = useState(60);
+
+    // Sound Effect
+    const [sfxText, setSfxText] = useState('');
+    const [sfxDuration, setSfxDuration] = useState(5);
+    const [sfxLoop, setSfxLoop] = useState(false);
+    const [sfxPromptInfluence, setSfxPromptInfluence] = useState(0.3);
+    const [sfxTranslatedText, setSfxTranslatedText] = useState('');
+
     // Auto-save video prompt
     useEffect(() => {
         try {
@@ -700,7 +751,7 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
     const [videoModel, setVideoModel] = useState<VideoModelType>('kling');
     const [upscaleModel, setUpscaleModel] = useState<UpscaleModelType>('creative');
 
-    const [lightboxItem, setLightboxItem] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
+    const [lightboxItem, setLightboxItem] = useState<{ url: string; type: 'image' | 'video' | 'audio' } | null>(null);
 
     // Realtime 订阅引用 - 改为 Map 支持多任务（纯 Realtime，无轮询）
     const subscriptionsRef = useRef<Map<string, { channel: RealtimeChannel }>>(new Map());
@@ -909,7 +960,7 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
             setImagePrompt(item.prompt);
             if (item.model === 'seedream' || item.model === 'seedream-edit') {
                 setImageModel('seedream');
-            } else if (item.model === 'banana') {
+            } else if (item.model === 'banana' || item.model === 'banana-edit') {
                 setImageModel('banana');
             }
             // 设置图片参数
@@ -922,6 +973,9 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
             setActiveMode(AppMode.VideoGeneration);
             setVideoPrompt(item.prompt);
             setVideoModel(item.model as VideoModelType);
+        } else if (item.type === 'audio') {
+            setActiveMode(AppMode.TextToSpeech);
+            setTtsText(item.prompt);
         }
 
         if (item.model === 'creative' || item.model === 'faithful') {
@@ -1018,8 +1072,11 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
             imageWidth: upscaleImageDimensions?.width || 0,
             imageHeight: upscaleImageDimensions?.height || 0,
             scaleFactor,
+            ttsTextLength: ttsText.replace(/\n/g, '').length,
+            musicLengthSeconds,
+            soundEffectDuration: sfxDuration,
         });
-    }, [activeMode, imageModel, videoModel, minimaxResolution, minimaxDuration, wanResolution, wanDuration, pixverseResolution, pixverseDuration, ltxResolution, ltxDuration, runwayDuration, klingModelVersion, klingDuration, klingGenerateAudio, upscaleModel, upscaleImageDimensions, magnificScaleFactor, precisionScaleFactor]);
+    }, [activeMode, imageModel, videoModel, minimaxResolution, minimaxDuration, wanResolution, wanDuration, pixverseResolution, pixverseDuration, ltxResolution, ltxDuration, runwayDuration, klingModelVersion, klingDuration, klingGenerateAudio, upscaleModel, upscaleImageDimensions, magnificScaleFactor, precisionScaleFactor, ttsText, musicLengthSeconds, sfxDuration]);
 
     const handleGenerate = useCallback(async () => {
         // 检查登录状态
@@ -1037,10 +1094,22 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
         // 根据模式获取对应的参数
         const currentPrompt = activeMode === AppMode.ImageCreation ? imagePrompt
             : activeMode === AppMode.VideoGeneration ? videoPrompt
+            : activeMode === AppMode.TextToSpeech ? ttsText
+            : activeMode === AppMode.MusicGeneration ? musicPrompt
+            : activeMode === AppMode.SoundEffect ? sfxText
             : upscalePrompt;
 
         // Basic validations
-        if (activeMode !== AppMode.Upscale && !currentPrompt) {
+        if (activeMode === AppMode.TextToSpeech) {
+            if (!ttsText.trim()) {
+                addNotification(i18next.t('common:generation.emptyPrompt'), i18next.t('common:generation.enterTtsText'), 'error');
+                return;
+            }
+            if (!ttsVoiceId) {
+                addNotification(i18next.t('common:generation.emptyPrompt'), i18next.t('common:generation.selectVoice'), 'error');
+                return;
+            }
+        } else if (activeMode !== AppMode.Upscale && !currentPrompt) {
             addNotification(i18next.t('common:generation.emptyPrompt'), i18next.t('common:generation.emptyPromptDesc'), 'error');
             return;
         }
@@ -1150,6 +1219,75 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
                 });
 
                 // 保存订阅引用
+                subscriptionsRef.current.set(taskId, subscription);
+
+                return;
+            }
+
+            // Banana Pro 图片生成
+            if (activeMode === AppMode.ImageCreation && imageModel === 'banana') {
+                addLog(i18next.t('common:generation.callingModel', { model: 'Banana Pro' }));
+                addNotification(i18next.t('common:generation.submitting'), i18next.t('common:generation.connectingAI'), 'info');
+
+                let referenceImageUrl: string | undefined;
+                if (imageReferenceImages.length > 0) {
+                    addLog(i18next.t('common:generation.uploadingRefImages', { count: imageReferenceImages.length }));
+                    referenceImageUrl = await uploadImageToR2(imageReferenceImages[0]);
+                }
+
+                const result = await generateBanana({
+                    user_id: userId || undefined,
+                    prompt: imagePrompt,
+                    aspect_ratio: imageAspectRatio,
+                    seed: seedNum,
+                    enable_safety_checker: imageSafetyChecker,
+                    reference_image: referenceImageUrl
+                });
+
+                if (!result.success) {
+                    throw new Error(result.error || i18next.t('common:generation.submitFailed'));
+                }
+
+                if (result.remaining_credits !== undefined) setUserCredits(result.remaining_credits);
+                addLog(i18next.t('common:generation.taskSubmittedId', { id: result.task_id?.slice(0, 8) }));
+                addNotification(i18next.t('common:generation.submitted'), i18next.t('common:generation.imageGenerating'), 'success');
+
+                const taskId = result.task_id!;
+                const taskModel = imageReferenceImages.length > 0 ? 'banana-edit' : 'banana';
+                const taskPrompt = imagePrompt;
+                const taskParams = { ...currentParams };
+
+                const pendingItem: GeneratedItem = {
+                    id: taskId, type: 'image', url: '', prompt: taskPrompt,
+                    timestamp: Date.now(), model: taskModel, status: 'processing', params: taskParams
+                };
+                setPendingTasks(prev => [...prev, pendingItem]);
+                setStatus(GenerationStatus.Idle);
+                setLogs([]);
+
+                const subscription = subscribeToTask(taskId, (updatedTask) => {
+                    if (updatedTask.status === 'completed' && updatedTask.result_url) {
+                        setPendingTasks(prev => prev.filter(t => t.id !== taskId));
+                        const completedItem: GeneratedItem = {
+                            id: taskId, type: 'image', url: updatedTask.result_url, prompt: taskPrompt,
+                            timestamp: Date.now(), model: taskModel, status: 'completed', params: taskParams
+                        };
+                        setHistory(prev => {
+                            if (prev.some(item => item.id === taskId)) return prev;
+                            return [completedItem, ...prev];
+                        });
+                        setResult(completedItem);
+                        addNotification(i18next.t('common:generation.generateSuccess'), i18next.t('common:generation.workReady'), 'success');
+                        const sub = subscriptionsRef.current.get(taskId);
+                        if (sub) { unsubscribeFromTask(sub); subscriptionsRef.current.delete(taskId); }
+                    } else if (updatedTask.status === 'failed') {
+                        setPendingTasks(prev => prev.filter(t => t.id !== taskId));
+                        addNotification(i18next.t('common:generation.generateFailed'), updatedTask.error_message || i18next.t('common:generation.pleaseRetry'), 'error');
+                        if (userId) getUserCredits(userId!).then(c => { if (c >= 0) setUserCredits(c); });
+                        const sub = subscriptionsRef.current.get(taskId);
+                        if (sub) { unsubscribeFromTask(sub); subscriptionsRef.current.delete(taskId); }
+                    }
+                });
                 subscriptionsRef.current.set(taskId, subscription);
 
                 return;
@@ -1830,6 +1968,211 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
                 // 未实现的视频模型
                 throw new Error(i18next.t('common:generation.videoModelNotAvailable', { model: videoModel }));
             }
+            // TTS 文字转语音
+            else if (activeMode === AppMode.TextToSpeech) {
+                addLog(i18next.t('common:generation.callingModel', { model: 'ElevenLabs TTS' }));
+                addNotification(i18next.t('common:generation.submitting'), i18next.t('common:generation.connectingAI'), 'info');
+
+                const result = await generateTTS({
+                    user_id: userId || undefined,
+                    text: ttsText,
+                    voice_id: ttsVoiceId,
+                    stability: ttsStability,
+                    similarity_boost: ttsSimilarityBoost,
+                    speed: ttsSpeed,
+                    use_speaker_boost: ttsSpeakerBoost
+                });
+
+                if (!result.success) {
+                    throw new Error(result.error || i18next.t('common:generation.submitFailed'));
+                }
+
+                if (result.remaining_credits !== undefined) setUserCredits(result.remaining_credits);
+                addLog(i18next.t('common:generation.taskSubmittedId', { id: result.task_id?.slice(0, 8) }));
+                addNotification(i18next.t('common:generation.submitted'), i18next.t('common:generation.ttsGenerating'), 'success');
+
+                const taskId = result.task_id!;
+                const pendingItem: GeneratedItem = {
+                    id: taskId,
+                    type: 'audio',
+                    url: '',
+                    prompt: ttsText.slice(0, 200),
+                    timestamp: Date.now(),
+                    model: 'elevenlabs-tts',
+                    status: 'processing'
+                };
+                setPendingTasks(prev => [...prev, pendingItem]);
+                setStatus(GenerationStatus.Idle);
+                setLogs([]);
+
+                const subscription = subscribeToTask(taskId, (updatedTask) => {
+                    if (updatedTask.status === 'completed' && updatedTask.result_url) {
+                        setPendingTasks(prev => prev.filter(t => t.id !== taskId));
+                        const completedItem: GeneratedItem = {
+                            id: taskId,
+                            type: 'audio',
+                            url: updatedTask.result_url,
+                            prompt: ttsText.slice(0, 200),
+                            timestamp: Date.now(),
+                            model: 'elevenlabs-tts',
+                            status: 'completed'
+                        };
+                        setHistory(prev => {
+                            if (prev.some(item => item.id === taskId)) return prev;
+                            return [completedItem, ...prev];
+                        });
+                        setResult(completedItem);
+                        addNotification(i18next.t('common:generation.generateSuccess'), i18next.t('common:generation.ttsReady'), 'success');
+
+                        const sub = subscriptionsRef.current.get(taskId);
+                        if (sub) { unsubscribeFromTask(sub); subscriptionsRef.current.delete(taskId); }
+                    } else if (updatedTask.status === 'failed') {
+                        setPendingTasks(prev => prev.filter(t => t.id !== taskId));
+                        addNotification(i18next.t('common:generation.generateFailed'), updatedTask.error_message || i18next.t('common:generation.pleaseRetry'), 'error');
+                        if (userId) getUserCredits(userId!).then(c => { if (c >= 0) setUserCredits(c); });
+
+                        const sub = subscriptionsRef.current.get(taskId);
+                        if (sub) { unsubscribeFromTask(sub); subscriptionsRef.current.delete(taskId); }
+                    }
+                });
+                subscriptionsRef.current.set(taskId, subscription);
+                return;
+            }
+            // 音乐生成
+            else if (activeMode === AppMode.MusicGeneration) {
+                addLog(i18next.t('common:generation.callingModel', { model: 'Music Generation' }));
+                addNotification(i18next.t('common:generation.submitting'), i18next.t('common:generation.connectingAI'), 'info');
+
+                const result = await generateMusic({
+                    user_id: userId || undefined,
+                    prompt: musicPrompt,
+                    music_length_seconds: musicLengthSeconds
+                });
+
+                if (!result.success) {
+                    throw new Error(result.error || i18next.t('common:generation.submitFailed'));
+                }
+
+                if (result.remaining_credits !== undefined) setUserCredits(result.remaining_credits);
+                addLog(i18next.t('common:generation.taskSubmittedId', { id: result.task_id?.slice(0, 8) }));
+                addNotification(i18next.t('common:generation.submitted'), i18next.t('common:generation.musicGenerating'), 'success');
+
+                const taskId = result.task_id!;
+                const pendingItem: GeneratedItem = {
+                    id: taskId,
+                    type: 'audio',
+                    url: '',
+                    prompt: musicPrompt.slice(0, 200),
+                    timestamp: Date.now(),
+                    model: 'music-generation',
+                    status: 'processing'
+                };
+                setPendingTasks(prev => [...prev, pendingItem]);
+                setStatus(GenerationStatus.Idle);
+                setLogs([]);
+
+                const subscription = subscribeToTask(taskId, (updatedTask) => {
+                    if (updatedTask.status === 'completed' && updatedTask.result_url) {
+                        setPendingTasks(prev => prev.filter(t => t.id !== taskId));
+                        const completedItem: GeneratedItem = {
+                            id: taskId,
+                            type: 'audio',
+                            url: updatedTask.result_url,
+                            prompt: musicPrompt.slice(0, 200),
+                            timestamp: Date.now(),
+                            model: 'music-generation',
+                            status: 'completed'
+                        };
+                        setHistory(prev => {
+                            if (prev.some(item => item.id === taskId)) return prev;
+                            return [completedItem, ...prev];
+                        });
+                        setResult(completedItem);
+                        addNotification(i18next.t('common:generation.generateSuccess'), i18next.t('common:generation.musicReady'), 'success');
+
+                        const sub = subscriptionsRef.current.get(taskId);
+                        if (sub) { unsubscribeFromTask(sub); subscriptionsRef.current.delete(taskId); }
+                    } else if (updatedTask.status === 'failed') {
+                        setPendingTasks(prev => prev.filter(t => t.id !== taskId));
+                        addNotification(i18next.t('common:generation.generateFailed'), updatedTask.error_message || i18next.t('common:generation.pleaseRetry'), 'error');
+                        if (userId) getUserCredits(userId!).then(c => { if (c >= 0) setUserCredits(c); });
+
+                        const sub = subscriptionsRef.current.get(taskId);
+                        if (sub) { unsubscribeFromTask(sub); subscriptionsRef.current.delete(taskId); }
+                    }
+                });
+                subscriptionsRef.current.set(taskId, subscription);
+                return;
+            }
+            // 音效生成
+            else if (activeMode === AppMode.SoundEffect) {
+                addLog(i18next.t('common:generation.callingModel', { model: 'Sound Effect' }));
+                addNotification(i18next.t('common:generation.submitting'), i18next.t('common:generation.connectingAI'), 'info');
+
+                const result = await generateSoundEffect({
+                    user_id: userId || undefined,
+                    text: sfxText,
+                    duration_seconds: sfxDuration,
+                    loop: sfxLoop,
+                    prompt_influence: sfxPromptInfluence
+                });
+
+                if (!result.success) {
+                    throw new Error(result.error || i18next.t('common:generation.submitFailed'));
+                }
+
+                if (result.remaining_credits !== undefined) setUserCredits(result.remaining_credits);
+                if (result.translated_text) setSfxTranslatedText(result.translated_text);
+                addLog(i18next.t('common:generation.taskSubmittedId', { id: result.task_id?.slice(0, 8) }));
+                addNotification(i18next.t('common:generation.submitted'), i18next.t('common:generation.soundEffectGenerating'), 'success');
+
+                const taskId = result.task_id!;
+                const pendingItem: GeneratedItem = {
+                    id: taskId,
+                    type: 'audio',
+                    url: '',
+                    prompt: sfxText.slice(0, 200),
+                    timestamp: Date.now(),
+                    model: 'sound-effect',
+                    status: 'processing'
+                };
+                setPendingTasks(prev => [...prev, pendingItem]);
+                setStatus(GenerationStatus.Idle);
+                setLogs([]);
+
+                const subscription = subscribeToTask(taskId, (updatedTask) => {
+                    if (updatedTask.status === 'completed' && updatedTask.result_url) {
+                        setPendingTasks(prev => prev.filter(t => t.id !== taskId));
+                        const completedItem: GeneratedItem = {
+                            id: taskId,
+                            type: 'audio',
+                            url: updatedTask.result_url,
+                            prompt: sfxText.slice(0, 200),
+                            timestamp: Date.now(),
+                            model: 'sound-effect',
+                            status: 'completed'
+                        };
+                        setHistory(prev => {
+                            if (prev.some(item => item.id === taskId)) return prev;
+                            return [completedItem, ...prev];
+                        });
+                        setResult(completedItem);
+                        addNotification(i18next.t('common:generation.generateSuccess'), i18next.t('common:generation.soundEffectReady'), 'success');
+
+                        const sub = subscriptionsRef.current.get(taskId);
+                        if (sub) { unsubscribeFromTask(sub); subscriptionsRef.current.delete(taskId); }
+                    } else if (updatedTask.status === 'failed') {
+                        setPendingTasks(prev => prev.filter(t => t.id !== taskId));
+                        addNotification(i18next.t('common:generation.generateFailed'), updatedTask.error_message || i18next.t('common:generation.pleaseRetry'), 'error');
+                        if (userId) getUserCredits(userId!).then(c => { if (c >= 0) setUserCredits(c); });
+
+                        const sub = subscriptionsRef.current.get(taskId);
+                        if (sub) { unsubscribeFromTask(sub); subscriptionsRef.current.delete(taskId); }
+                    }
+                });
+                subscriptionsRef.current.set(taskId, subscription);
+                return;
+            }
             else if (activeMode === AppMode.Upscale) {
                 const modeName = upscaleModel === 'creative' ? i18next.t('common:generation.creativeMagnific') : i18next.t('common:generation.precisionMagnific');
                 addLog(i18next.t('common:generation.usingModel', { model: modeName }));
@@ -2000,7 +2343,7 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
             setLogs([]);
             addNotification(i18next.t('common:generation.generateFailed'), error.message || i18next.t('common:generation.unknownError'), 'error');
         }
-    }, [isLoggedIn, userId, userCredits, estimatedCost, activeMode, imageModel, imagePrompt, imageReferenceImages, imageSeed, imageAspectRatio, imageSafetyChecker, videoModel, videoPrompt, videoFirstFrame, minimaxModelVersion, minimaxResolution, minimaxDuration, minimaxPromptOptimizer, minimaxLastFrameImage, wanModelVersion, wanResolution, wanDuration, wanSize, wanNegativePrompt, wanEnablePromptExpansion, wanShotType, wanSeed, pixverseMode, pixverseResolution, pixverseDuration, pixverseNegativePrompt, pixverseStyle, pixverseSeed, pixverseLastFrameImage, ltxResolution, ltxDuration, ltxFps, ltxGenerateAudio, ltxSeed, runwayModelVersion, runwayRatio, runwayDuration, runwaySeed, klingModelVersion, klingDuration, klingAspectRatio, klingNegativePrompt, klingCfgScale, klingShotType, klingSeed, klingEndImage, klingReferenceVideo, klingElements, klingImageUrls, klingMultiPromptEnabled, klingMultiPrompts, klingGenerateAudio, upscaleModel, upscaleImageFile, upscalePrompt, addNotification, addLog]);
+    }, [isLoggedIn, userId, userCredits, estimatedCost, activeMode, imageModel, imagePrompt, imageReferenceImages, imageSeed, imageAspectRatio, imageSafetyChecker, videoModel, videoPrompt, videoFirstFrame, minimaxModelVersion, minimaxResolution, minimaxDuration, minimaxPromptOptimizer, minimaxLastFrameImage, wanModelVersion, wanResolution, wanDuration, wanSize, wanNegativePrompt, wanEnablePromptExpansion, wanShotType, wanSeed, pixverseMode, pixverseResolution, pixverseDuration, pixverseNegativePrompt, pixverseStyle, pixverseSeed, pixverseLastFrameImage, ltxResolution, ltxDuration, ltxFps, ltxGenerateAudio, ltxSeed, runwayModelVersion, runwayRatio, runwayDuration, runwaySeed, klingModelVersion, klingDuration, klingAspectRatio, klingNegativePrompt, klingCfgScale, klingShotType, klingSeed, klingEndImage, klingReferenceVideo, klingElements, klingImageUrls, klingMultiPromptEnabled, klingMultiPrompts, klingGenerateAudio, upscaleModel, upscaleImageFile, upscalePrompt, ttsText, ttsVoiceId, ttsStability, ttsSimilarityBoost, ttsSpeed, ttsSpeakerBoost, musicPrompt, musicLengthSeconds, sfxText, sfxDuration, sfxLoop, sfxPromptInfluence, addNotification, addLog]);
 
     const isAdmin = useMemo(() => {
         const phone = userPhone?.replace(/^\+86/, '') || '';
@@ -2099,6 +2442,21 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
         precisionSharpen, setPrecisionSharpen,
         precisionSmartGrain, setPrecisionSmartGrain,
         precisionUltraDetail, setPrecisionUltraDetail,
+        // TTS 参数
+        ttsText, setTtsText,
+        ttsVoiceId, setTtsVoiceId,
+        ttsStability, setTtsStability,
+        ttsSimilarityBoost, setTtsSimilarityBoost,
+        ttsSpeed, setTtsSpeed,
+        ttsSpeakerBoost, setTtsSpeakerBoost,
+        // Music
+        musicPrompt, setMusicPrompt,
+        musicLengthSeconds, setMusicLengthSeconds,
+        sfxText, setSfxText,
+        sfxDuration, setSfxDuration,
+        sfxLoop, setSfxLoop,
+        sfxPromptInfluence, setSfxPromptInfluence,
+        sfxTranslatedText, setSfxTranslatedText,
         // Actions
         handleGenerate,
         addNotification, removeNotification,
@@ -2125,6 +2483,9 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
         upscaleImageFile, upscaleImageDimensions, upscalePrompt,
         magnificScaleFactor, magnificOptimizedFor, magnificCreativity, magnificHdr, magnificResemblance, magnificFractality, magnificEngine,
         precisionScaleFactor, precisionFlavor, precisionSharpen, precisionSmartGrain, precisionUltraDetail,
+        ttsText, ttsVoiceId, ttsStability, ttsSimilarityBoost, ttsSpeed, ttsSpeakerBoost,
+        musicPrompt, musicLengthSeconds,
+        sfxText, sfxDuration, sfxLoop, sfxPromptInfluence, sfxTranslatedText,
         handleGenerate, addNotification, removeNotification,
         deleteHistoryItems, applyHistoryParams, cancelPendingTask, refreshPendingTask,
         goHome, showLanding, setShowLanding, lightboxItem

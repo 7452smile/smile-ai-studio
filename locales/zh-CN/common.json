@@ -129,7 +129,15 @@
     "upscaleFailedDesc": "处理失败",
     "usingModel": "正在使用 {{model}}...",
     "creativeMagnific": "Magnific 创意放大",
-    "precisionMagnific": "Magnific 精准放大"
+    "precisionMagnific": "Magnific 精准放大",
+    "ttsGenerating": "语音生成中，完成后会自动显示",
+    "ttsReady": "您的语音已准备就绪！",
+    "musicGenerating": "音乐正在生成中，请稍候...",
+    "musicReady": "您的音乐已准备就绪！",
+    "soundEffectGenerating": "音效正在生成中，请稍候...",
+    "soundEffectReady": "您的音效已准备就绪！",
+    "enterTtsText": "请输入要转换的文本",
+    "selectVoice": "请选择一个声音"
   },
   "removeBg": {
     "title": "一键抠图",

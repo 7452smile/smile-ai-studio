@@ -12,7 +12,7 @@ export const ADMIN_EMAILS: string[] = [
 
 export const IMAGE_MODELS: { id: ImageModelType; label: string; comingSoon?: boolean }[] = [
   { id: 'seedream', label: 'Seedream 4.5' },
-  { id: 'banana', label: 'Banana Pro (香蕉)', comingSoon: true },
+  { id: 'banana', label: 'Banana Pro', comingSoon: true },
 ];
 
 export const VIDEO_MODELS: { id: VideoModelType; label: string }[] = [

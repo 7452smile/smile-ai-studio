@@ -3,6 +3,7 @@
     "all": "All",
     "image": "Images",
     "video": "Videos",
+    "audio": "Audio",
     "upscale": "Upscale"
   },
   "pending": {
@@ -49,6 +50,35 @@
     "creative": "Magnific",
     "faithful": "4K Fast",
     "magnific-creative": "Creative Upscale",
-    "magnific-precision": "Precision Upscale"
+    "magnific-precision": "Precision Upscale",
+    "music-generation": "AI Music Generation",
+    "sound-effect": "AI Sound Effect",
+    "elevenlabs-tts": "ElevenLabs TTS"
+  },
+  "voiceBrowser": {
+    "title": "Voice Library",
+    "selected": "Selected",
+    "search": "Search voice name...",
+    "allLangs": "All Languages",
+    "allGenders": "All Genders",
+    "allAges": "All Ages",
+    "allUseCases": "All Use Cases",
+    "male": "Male",
+    "female": "Female",
+    "nonNativeHint": "Non-native voices can still generate Chinese audio, but results may vary",
+    "loadMore": "Load More",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "age_young": "Young",
+    "age_middle_aged": "Middle Aged",
+    "age_middle-aged": "Middle Aged",
+    "age_old": "Old",
+    "useCase_social_media": "Social Media",
+    "useCase_narrative_story": "Narrative",
+    "useCase_conversational": "Conversational",
+    "useCase_entertainment_tv": "Entertainment/TV",
+    "useCase_characters_animation": "Characters/Animation",
+    "useCase_informative_educational": "Educational",
+    "useCase_advertisement": "Advertisement"
   }
 }

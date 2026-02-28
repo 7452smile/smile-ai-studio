@@ -1,6 +1,6 @@
 import React, { useRef, useState, useCallback, memo, useMemo, useEffect } from 'react';
 import { AppMode, AspectRatio, GenerationStatus, MinimaxResolution, MinimaxDuration, MinimaxModelVersion, WanModelVersion, WanResolution, WanDuration, WanSize720p, WanSize1080p, WanShotType, PixVerseMode, PixVerseResolution, PixVerseDuration, PixVerseStyle, LtxResolution, LtxDuration, LtxFps, RunwayModelVersion, RunwayRatio, RunwayDuration, KlingModelVersion, KlingAspectRatio, KlingDuration, KlingShotType, KlingMultiPromptItem, KlingElement, MagnificScaleFactor, MagnificOptimizedFor, MagnificEngine, PrecisionScaleFactor, PrecisionFlavor } from '../types';
-import { Wand2, UploadCloud, X, Hash, Zap, HelpCircle, Plus, ChevronDown, Shield, ShieldOff, Sparkles, Clock, Monitor, ImageIcon, Film, Volume2, VolumeX, Video, Palette, ArrowRightLeft, Link, Trash2, Users, Focus, Layers, Undo2 } from 'lucide-react';
+import { Wand2, UploadCloud, X, Hash, Zap, HelpCircle, Plus, ChevronDown, ChevronRight, Shield, ShieldOff, Sparkles, Clock, Monitor, ImageIcon, Film, Volume2, VolumeX, Video, Palette, ArrowRightLeft, Link, Trash2, Users, Focus, Layers, Undo2 } from 'lucide-react';
 
 import { useGeneration } from '../context/GenerationContext';
 import { improvePrompt } from '../services/api';
@@ -116,7 +116,21 @@ const ControlPanel: React.FC = memo(() => {
     addNotification,
     // Credits
     userCredits,
-    estimatedCost
+    estimatedCost,
+    // TTS 参数
+    ttsText, setTtsText,
+    ttsVoiceId, setTtsVoiceId,
+    ttsStability, setTtsStability,
+    ttsSimilarityBoost, setTtsSimilarityBoost,
+    ttsSpeed, setTtsSpeed,
+    ttsSpeakerBoost, setTtsSpeakerBoost,
+    musicPrompt, setMusicPrompt,
+    musicLengthSeconds, setMusicLengthSeconds,
+    sfxText, setSfxText,
+    sfxDuration, setSfxDuration,
+    sfxLoop, setSfxLoop,
+    sfxPromptInfluence, setSfxPromptInfluence,
+    sfxTranslatedText, setSfxTranslatedText
   } = useGeneration();
 
   const isGenerating = status === GenerationStatus.Generating;
@@ -124,6 +138,17 @@ const ControlPanel: React.FC = memo(() => {
   const [ratioDropdownOpen, setRatioDropdownOpen] = useState(false);
   const [isOptimizingPrompt, setIsOptimizingPrompt] = useState(false);
   const [preOptimizePrompt, setPreOptimizePrompt] = useState<string | null>(null);
+  // TTS 声音数据
+  const [voices, setVoices] = useState<any[]>([]);
+  const [voiceSearch, setVoiceSearch] = useState('');
+  const [voiceFilterLang, setVoiceFilterLang] = useState('');
+  const [voiceFilterGender, setVoiceFilterGender] = useState('');
+  const [voiceDisplayCount, setVoiceDisplayCount] = useState(50);
+  const [ttsAdvancedOpen, setTtsAdvancedOpen] = useState(false);
+  const [ttsCustomVoiceMode, setTtsCustomVoiceMode] = useState(false);
+  const [ttsCustomVoiceId, setTtsCustomVoiceId] = useState('');
+  const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const { t } = useTranslation('controlPanel');
   const { t: tc } = useTranslation('common');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -134,9 +159,17 @@ const ControlPanel: React.FC = memo(() => {
   const MAX_IMAGES = 5;
   const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
+  // 加载声音数据
+  useEffect(() => {
+    if (mode !== AppMode.TextToSpeech || voices.length > 0) return;
+    fetch('/data/voices.json').then(r => r.json()).then(setVoices).catch(() => {});
+  }, [mode]);
+
   // 根据模式获取当前的 prompt 和 setPrompt
   const currentPrompt = mode === AppMode.ImageCreation ? imagePrompt
     : mode === AppMode.VideoGeneration ? videoPrompt
+    : mode === AppMode.MusicGeneration ? musicPrompt
+    : mode === AppMode.SoundEffect ? sfxText
     : upscalePrompt;
 
   const setCurrentPrompt = mode === AppMode.ImageCreation ? setImagePrompt
@@ -509,6 +542,7 @@ const ControlPanel: React.FC = memo(() => {
 
   const isGenerateDisabled = () => {
     if (isGenerating) return true;
+    if (mode === AppMode.TextToSpeech) return !ttsText.trim() || !ttsVoiceId;
     if (mode === AppMode.Upscale && !upscaleImage) return true;
     if (mode === AppMode.Upscale && upscaleImageDimensions) {
       const factor = upscaleModel === 'creative'
@@ -522,6 +556,7 @@ const ControlPanel: React.FC = memo(() => {
   };
 
   const renderModelSelector = () => {
+    if (mode === AppMode.TextToSpeech) return null;
     if (mode === AppMode.Upscale) {
       return (
         <div className="space-y-3 mb-6">
@@ -553,6 +588,388 @@ const ControlPanel: React.FC = memo(() => {
       );
     }
     return null;
+  };
+
+  // TTS 面板
+  const filteredVoices = useMemo(() => {
+    let list = voices;
+    if (voiceFilterLang) list = list.filter(v => v.language === voiceFilterLang);
+    if (voiceFilterGender) list = list.filter(v => v.gender === voiceFilterGender);
+    if (voiceSearch) {
+      const q = voiceSearch.toLowerCase();
+      list = list.filter(v => v.name.toLowerCase().includes(q));
+    }
+    return list;
+  }, [voices, voiceFilterLang, voiceFilterGender, voiceSearch]);
+
+  const voiceLanguages = useMemo(() => {
+    const langs = new Set(voices.map(v => v.language));
+    return [...langs].sort();
+  }, [voices]);
+
+  const handlePreviewVoice = useCallback((url: string) => {
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+    }
+    if (previewAudioUrl === url) {
+      setPreviewAudioUrl(null);
+      return;
+    }
+    setPreviewAudioUrl(url);
+    const audio = new Audio(url);
+    previewAudioRef.current = audio;
+    audio.play().catch(() => {});
+    audio.onended = () => setPreviewAudioUrl(null);
+  }, [previewAudioUrl]);
+
+  const renderTTSPanel = () => {
+    if (mode !== AppMode.TextToSpeech) return null;
+
+    return (
+      <>
+        {/* 文本输入 */}
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-content-tertiary uppercase tracking-wider flex items-center justify-between">
+            <span>{t('tts.textLabel')}</span>
+            <span className="text-content-muted normal-case">{ttsText.replace(/\n/g, '').length} / 40000</span>
+          </label>
+          <textarea
+            value={ttsText}
+            onChange={e => {
+              const val = e.target.value;
+              if (val.replace(/\n/g, '').length <= 40000) setTtsText(val);
+            }}
+            placeholder={t('tts.textPlaceholder')}
+            className="input w-full h-32 resize-none text-sm"
+          />
+          {ttsText.length > 0 && (
+            <div className="text-xs text-content-muted">
+              {t('tts.estimatedCost')}: {Math.ceil(ttsText.replace(/\n/g, '').length / 1000) * 5} {tc('credits')}
+              <span className="text-content-tertiary ml-1">({t('tts.pricingRule')})</span>
+            </div>
+          )}
+        </div>
+
+        {/* 已选声音 */}
+        <div className="space-y-2 pt-4 border-t border-surface-border">
+          <div className="text-xs font-semibold uppercase tracking-wider text-gradient-accent">{t('tts.voiceSelect')}</div>
+          {!ttsCustomVoiceMode && (
+            <>
+              {ttsVoiceId && voices.length > 0 && (() => {
+                const v = voices.find((v: any) => v.voice_id === ttsVoiceId);
+                if (!v) return null;
+                return (
+                  <div className="p-3 rounded-xl bg-accent-subtle border border-accent/30">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-sm text-accent">{v.name}</div>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-blue-500/10 text-blue-400">{v.language}</span>
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] ${v.gender === 'female' ? 'bg-pink-500/10 text-pink-400' : 'bg-cyan-500/10 text-cyan-400'}`}>{v.gender === 'female' ? t('tts.female') : t('tts.male')}</span>
+                          {v.age && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-surface-hover text-content-muted">{v.age}</span>}
+                        </div>
+                      </div>
+                      {v.preview_audio && (
+                        <button
+                          onClick={() => handlePreviewVoice(v.preview_audio)}
+                          className={`p-2 rounded-lg shrink-0 transition-all ${previewAudioUrl === v.preview_audio ? 'bg-accent text-white' : 'bg-surface-hover/80 text-content-muted hover:text-content'}`}
+                        >
+                          {previewAudioUrl === v.preview_audio ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+              {!ttsVoiceId && <p className="text-xs text-content-muted py-1">{t('tts.selectVoiceHint')}</p>}
+            </>
+          )}
+        </div>
+
+        {/* 高级参数 */}
+        <div className="pt-4 border-t border-surface-border">
+          <button
+            onClick={() => setTtsAdvancedOpen(!ttsAdvancedOpen)}
+            className="flex items-center space-x-2 text-xs text-content-secondary hover:text-content transition-colors w-full"
+          >
+            {ttsAdvancedOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+            <span>{t('tts.advancedSettings')}</span>
+          </button>
+          {ttsAdvancedOpen && (
+            <div className="space-y-4 mt-3">
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-content-muted">
+                  <span className="flex items-center space-x-1">
+                    <span>{t('tts.stability')}</span>
+                    <Tooltip text={t('tts.stabilityDesc')}><HelpCircle className="w-3 h-3 cursor-help" /></Tooltip>
+                  </span>
+                  <span>{ttsStability.toFixed(1)}</span>
+                </div>
+                <input type="range" min="0" max="1" step="0.1" value={ttsStability} onChange={e => setTtsStability(parseFloat(e.target.value))} className="w-full accent-accent" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-content-muted">
+                  <span className="flex items-center space-x-1">
+                    <span>{t('tts.similarityBoost')}</span>
+                    <Tooltip text={t('tts.similarityBoostDesc')}><HelpCircle className="w-3 h-3 cursor-help" /></Tooltip>
+                  </span>
+                  <span>{ttsSimilarityBoost.toFixed(1)}</span>
+                </div>
+                <input type="range" min="0" max="1" step="0.1" value={ttsSimilarityBoost} onChange={e => setTtsSimilarityBoost(parseFloat(e.target.value))} className="w-full accent-accent" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-content-muted">
+                  <span className="flex items-center space-x-1">
+                    <span>{t('tts.speed')}</span>
+                    <Tooltip text={t('tts.speedDesc')}><HelpCircle className="w-3 h-3 cursor-help" /></Tooltip>
+                  </span>
+                  <span>{ttsSpeed.toFixed(1)}</span>
+                </div>
+                <input type="range" min="0.7" max="1.2" step="0.1" value={ttsSpeed} onChange={e => setTtsSpeed(parseFloat(e.target.value))} className="w-full accent-accent" />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-content-muted flex items-center space-x-1">
+                  <span>{t('tts.speakerBoost')}</span>
+                  <Tooltip text={t('tts.speakerBoostDesc')}><HelpCircle className="w-3 h-3 cursor-help" /></Tooltip>
+                </span>
+                <button
+                  onClick={() => setTtsSpeakerBoost(!ttsSpeakerBoost)}
+                  className={`w-9 h-5 rounded-full transition-colors ${ttsSpeakerBoost ? 'bg-accent' : 'bg-surface-border'}`}
+                >
+                  <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${ttsSpeakerBoost ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                </button>
+              </div>
+              {/* 自定义 Voice ID */}
+              <div className="pt-3 border-t border-surface-border/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-content-muted flex items-center space-x-1">
+                    <span>{t('tts.customVoiceId')}</span>
+                    <Tooltip text={t('tts.customVoiceIdHint')}><HelpCircle className="w-3 h-3 cursor-help" /></Tooltip>
+                  </span>
+                  <button
+                    onClick={() => {
+                      setTtsCustomVoiceMode(!ttsCustomVoiceMode);
+                      if (!ttsCustomVoiceMode) {
+                        setTtsCustomVoiceId('');
+                        setTtsVoiceId('');
+                      } else {
+                        setTtsCustomVoiceId('');
+                      }
+                    }}
+                    className={`w-9 h-5 rounded-full transition-colors ${ttsCustomVoiceMode ? 'bg-accent' : 'bg-surface-border'}`}
+                  >
+                    <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${ttsCustomVoiceMode ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                  </button>
+                </div>
+                {ttsCustomVoiceMode && (
+                  <div className="space-y-1.5">
+                    <input
+                      type="text"
+                      value={ttsCustomVoiceId}
+                      onChange={e => { const v = e.target.value.trim(); setTtsCustomVoiceId(v); setTtsVoiceId(v); }}
+                      placeholder={t('tts.customVoiceIdPlaceholder')}
+                      className="input w-full text-xs"
+                    />
+                    <p className="text-[10px] text-content-tertiary leading-relaxed">{t('tts.customVoiceIdDesc')}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </>
+    );
+  };
+
+  // 音乐生成设置面板
+  const renderMusicSettings = () => {
+    if (mode !== AppMode.MusicGeneration) return null;
+    return (
+      <>
+        {/* 提示词 */}
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-content-tertiary uppercase tracking-wider flex items-center justify-between">
+            <span>{t('music.promptLabel')}</span>
+            <span className="text-content-muted normal-case">{musicPrompt.length} / 2500</span>
+          </label>
+          <textarea
+            value={musicPrompt}
+            onChange={e => { if (e.target.value.length <= 2500) setMusicPrompt(e.target.value); }}
+            placeholder={t('music.promptPlaceholder')}
+            className="input w-full h-28 resize-none text-sm"
+          />
+        </div>
+
+        {/* 时长 */}
+        <div className="space-y-2 pt-4 border-t border-surface-border">
+          <div className="flex justify-between items-center text-xs text-content-muted">
+            <span className="flex items-center space-x-1">
+              <span>{t('music.duration')}</span>
+              <Tooltip text={t('music.durationDesc')}><HelpCircle className="w-3 h-3 cursor-help" /></Tooltip>
+            </span>
+            <div className="flex items-center space-x-1">
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={musicLengthSeconds}
+                onChange={e => {
+                  const raw = e.target.value.replace(/\D/g, '');
+                  if (!raw) return;
+                  const v = parseInt(raw);
+                  if (v >= 1 && v <= 240) setMusicLengthSeconds(v);
+                }}
+                onBlur={() => { if (musicLengthSeconds < 10) setMusicLengthSeconds(10); }}
+                className="input w-16 text-center text-xs py-1"
+              />
+              <span className="text-content-tertiary">{t('music.seconds')}</span>
+            </div>
+          </div>
+          <input
+            type="range"
+            min={10}
+            max={240}
+            step={1}
+            value={musicLengthSeconds}
+            onChange={e => setMusicLengthSeconds(parseInt(e.target.value))}
+            className="w-full accent-accent"
+          />
+        </div>
+
+        {/* 预估消耗 */}
+        <div className="pt-4 border-t border-surface-border">
+          <div className="text-xs text-content-muted">
+            {t('music.estimatedCost')}: {musicLengthSeconds} {tc('credits')}
+            <span className="text-content-tertiary ml-1">({t('music.pricingRule')})</span>
+          </div>
+        </div>
+
+        {/* 提示词技巧 */}
+        <div className="pt-4 border-t border-surface-border space-y-3">
+          <div className="text-xs font-medium text-content">{t('music.tips')}</div>
+          <div className="grid grid-cols-1 gap-2">
+            {(['tipGenre', 'tipMood', 'tipInstrument', 'tipTempo'] as const).map(key => {
+              const text = t(`music.${key}`);
+              const colonIdx = text.indexOf('：') !== -1 ? text.indexOf('：') : text.indexOf(':');
+              const label = colonIdx !== -1 ? text.slice(0, colonIdx) : '';
+              const content = colonIdx !== -1 ? text.slice(colonIdx + 1).trim() : text;
+              return (
+                <div key={key} className="bg-surface-hover/50 rounded-lg px-3 py-2">
+                  {label && <div className="text-[11px] font-medium text-content-secondary mb-0.5">{label}</div>}
+                  <div className="text-[11px] text-content-tertiary leading-relaxed">{content}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  // 音效设置面板
+  const renderSoundEffectSettings = () => {
+    if (mode !== AppMode.SoundEffect) return null;
+    return (
+      <>
+        {/* 提示词 */}
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-content-tertiary uppercase tracking-wider flex items-center justify-between">
+            <span>{t('soundEffect.promptLabel')}</span>
+            <span className="text-content-muted normal-case">{sfxText.length} / 500</span>
+          </label>
+          <textarea
+            value={sfxText}
+            onChange={e => { if (e.target.value.length <= 500) { setSfxText(e.target.value); setSfxTranslatedText(''); } }}
+            placeholder={t('soundEffect.promptPlaceholder')}
+            className="input w-full h-24 resize-none text-sm"
+          />
+          <div className="text-[11px] text-content-tertiary">{t('soundEffect.autoTranslateHint')}</div>
+          {sfxTranslatedText && (
+            <div className="bg-surface-hover/50 rounded-lg px-3 py-2">
+              <div className="text-[11px] font-medium text-content-secondary mb-0.5">{t('soundEffect.translatedText')}</div>
+              <div className="text-[11px] text-content-tertiary leading-relaxed">{sfxTranslatedText}</div>
+            </div>
+          )}
+        </div>
+
+        {/* 时长 */}
+        <div className="space-y-2 pt-4 border-t border-surface-border">
+          <div className="flex justify-between items-center text-xs text-content-muted">
+            <span className="flex items-center space-x-1">
+              <span>{t('soundEffect.duration')}</span>
+              <Tooltip text={t('soundEffect.durationDesc')}><HelpCircle className="w-3 h-3 cursor-help" /></Tooltip>
+            </span>
+            <div className="flex items-center space-x-1">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={sfxDuration}
+                onChange={e => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v) && v >= 0.5 && v <= 22) setSfxDuration(v);
+                }}
+                onBlur={() => { if (sfxDuration < 0.5) setSfxDuration(0.5); }}
+                className="input w-16 text-center text-xs py-1"
+              />
+              <span className="text-content-tertiary">{t('soundEffect.seconds')}</span>
+            </div>
+          </div>
+          <input
+            type="range"
+            min={0.5}
+            max={22}
+            step={0.5}
+            value={sfxDuration}
+            onChange={e => setSfxDuration(parseFloat(e.target.value))}
+            className="w-full accent-accent"
+          />
+        </div>
+
+        {/* 提示词影响力 */}
+        <div className="space-y-2 pt-4 border-t border-surface-border">
+          <div className="flex justify-between items-center text-xs text-content-muted">
+            <span className="flex items-center space-x-1">
+              <span>{t('soundEffect.promptInfluence')}</span>
+              <Tooltip text={t('soundEffect.promptInfluenceDesc')}><HelpCircle className="w-3 h-3 cursor-help" /></Tooltip>
+            </span>
+            <span className="text-content-tertiary">{sfxPromptInfluence.toFixed(1)}</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.1}
+            value={sfxPromptInfluence}
+            onChange={e => setSfxPromptInfluence(parseFloat(e.target.value))}
+            className="w-full accent-accent"
+          />
+        </div>
+
+        {/* 循环 */}
+        <div className="pt-4 border-t border-surface-border">
+          <label className="flex items-center justify-between cursor-pointer">
+            <span className="flex items-center space-x-1 text-xs text-content-muted">
+              <span>{t('soundEffect.loop')}</span>
+              <Tooltip text={t('soundEffect.loopDesc')}><HelpCircle className="w-3 h-3 cursor-help" /></Tooltip>
+            </span>
+            <div
+              onClick={() => setSfxLoop(!sfxLoop)}
+              className={`w-9 h-5 rounded-full transition-colors relative cursor-pointer ${sfxLoop ? 'bg-accent' : 'bg-surface-hover'}`}
+            >
+              <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${sfxLoop ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </div>
+          </label>
+        </div>
+
+        {/* 预估消耗 */}
+        <div className="pt-4 border-t border-surface-border">
+          <div className="text-xs text-content-muted">
+            {t('soundEffect.estimatedCost')}: 2 {tc('credits')}
+            <span className="text-content-tertiary ml-1">({t('soundEffect.pricingRule')})</span>
+          </div>
+        </div>
+      </>
+    );
   };
 
   // Magnific 放大设置面板
@@ -2507,8 +2924,8 @@ const ControlPanel: React.FC = memo(() => {
 
         {renderModelSelector()}
 
-        {/* Prompt Input - 精准放大不需要提示词 */}
-        {!(mode === AppMode.Upscale && upscaleModel === 'precision') && (
+        {/* Prompt Input - 精准放大不需要提示词，TTS/音乐有自己的文本框 */}
+        {!(mode === AppMode.Upscale && upscaleModel === 'precision') && mode !== AppMode.TextToSpeech && mode !== AppMode.MusicGeneration && mode !== AppMode.SoundEffect && (
         <div className="space-y-2">
           <label className="text-xs font-medium text-content-tertiary uppercase tracking-wider flex items-center space-x-1">
             <span>{t('prompt.label')}</span>
@@ -2806,7 +3223,8 @@ const ControlPanel: React.FC = memo(() => {
               </div>
             </div>
 
-            {/* Seed */}
+            {/* Seed - Banana Pro 不支持 */}
+            {imageModel !== 'banana' && (
             <div className="space-y-2">
               <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
                 <Hash className="w-3 h-3" />
@@ -2825,8 +3243,10 @@ const ControlPanel: React.FC = memo(() => {
                 className="input w-full text-xs"
               />
             </div>
+            )}
 
-            {/* Safety Checker Toggle */}
+            {/* Safety Checker Toggle - Banana Pro 不支持 */}
+            {imageModel !== 'banana' && (
             <div className="space-y-2">
               <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
                 <span>{t('image.safetyChecker')}</span>
@@ -2848,6 +3268,7 @@ const ControlPanel: React.FC = memo(() => {
                 </div>
               </button>
             </div>
+            )}
           </div>
         )}
 
@@ -2874,6 +3295,15 @@ const ControlPanel: React.FC = memo(() => {
 
         {/* Magnific 放大设置 */}
         {renderMagnificSettings()}
+
+        {/* TTS 模式 */}
+        {mode === AppMode.TextToSpeech && renderTTSPanel()}
+
+        {/* 音乐生成模式 */}
+        {mode === AppMode.MusicGeneration && renderMusicSettings()}
+
+        {/* 音效生成模式 */}
+        {mode === AppMode.SoundEffect && renderSoundEffectSettings()}
         </div>
       </div>
 
@@ -2906,12 +3336,12 @@ const ControlPanel: React.FC = memo(() => {
           {isGenerating ? (
             <>
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-              <span>{mode === AppMode.Upscale ? t('generate.upscaling') : t('generate.generating')}</span>
+              <span>{mode === AppMode.Upscale ? t('generate.upscaling') : mode === AppMode.TextToSpeech ? t('generate.ttsGenerating') : t('generate.generating')}</span>
             </>
           ) : (
             <>
               <Wand2 className="w-5 h-5" />
-              <span>{mode === AppMode.Upscale ? t('generate.upscaleButton') : t('generate.button')}</span>
+              <span>{mode === AppMode.Upscale ? t('generate.upscaleButton') : mode === AppMode.TextToSpeech ? t('generate.ttsButton') : t('generate.button')}</span>
             </>
           )}
         </button>

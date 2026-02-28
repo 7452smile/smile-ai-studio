@@ -85,7 +85,9 @@
       "image": "图片生成",
       "video": "视频生成",
       "upscale": "高清放大",
-      "removebg": "一键抠图"
+      "removebg": "一键抠图",
+      "tts": "文字转语音",
+      "music": "音乐生成"
     },
     "headers": {
       "model": "模型",
@@ -96,11 +98,16 @@
       "version": "版本",
       "audio": "音频",
       "outputSize": "输出尺寸",
-      "operation": "操作"
+      "operation": "操作",
+      "billingRule": "计费方式"
     },
     "comingSoon": "即将上线",
     "magnificNote": "Magnific 官方 API — 价格仅需官方 1/10",
     "removeBgNote": "固定 {{cost}} 积分/张，不限尺寸。",
+    "ttsRule": "每 1000 字符",
+    "ttsNote": "每 1000 字符 5 积分（不足 1000 按 1000 计），单次最多 40000 字符。",
+    "musicRule": "每秒",
+    "musicNote": "每秒 1 积分，时长范围 10-240 秒。提示词仅支持英文，输入中文会自动翻译。",
     "billingRule": "计费规则",
     "perSecond": "积分/秒",
     "withAudio": "带音频",

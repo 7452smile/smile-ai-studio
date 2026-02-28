@@ -9,6 +9,9 @@ export enum AppMode {
   Referral = 'referral',
   ImageToPrompt = 'image-to-prompt',
   CreditsHistory = 'credits-history',
+  TextToSpeech = 'text-to-speech',
+  SoundEffect = 'sound-effect',
+  MusicGeneration = 'music-generation',
 }
 
 export type ImageModelType = 'seedream' | 'banana';
@@ -113,7 +116,7 @@ export enum GenerationStatus {
 
 export interface GeneratedItem {
   id: string;
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'audio';
   url: string;
   prompt: string;
   timestamp: number;
