@@ -246,6 +246,24 @@ serve(async (req) => {
                 return jsonResponse({ success: true, count: rows.length });
             }
 
+            // ==================== 批量修改所有 API Key 余额 ====================
+            case "batch_set_api_key_credits": {
+                const { credits } = params;
+                if (credits === undefined || credits === null) {
+                    return jsonResponse({ success: false, error: "缺少 credits 参数" }, 400);
+                }
+                const newCredits = Number(credits);
+                const { data, error } = await supabase
+                    .from("freepik_api_keys")
+                    .update({ remaining_credits: newCredits })
+                    .eq("is_active", true)
+                    .select("id");
+                if (error) { await logAudit("batch_set_api_key_credits", null, { credits: newCredits }, false, error.message); return jsonResponse({ success: false, error: error.message }, 500); }
+                const count = data?.length || 0;
+                await logAudit("batch_set_api_key_credits", null, { credits: newCredits, count }, true);
+                return jsonResponse({ success: true, count });
+            }
+
             // ==================== 创建兑换码 ====================
             case "create_redemption_code": {
                 const { code, credits_amount, max_uses = 1, code_type = "promo", description = "", expires_at, tier_id } = params;
@@ -388,6 +406,114 @@ serve(async (req) => {
                 if (error) { await logAudit("batch_disable_used_codes", null, {}, false, error.message); return jsonResponse({ success: false, error: error.message }, 500); }
                 await logAudit("batch_disable_used_codes", null, { affected: ids.length }, true);
                 return jsonResponse({ success: true, affected: ids.length });
+            }
+
+            case "create_agent": {
+                const { user_id, domain, brand_name, logo_url, credits_rate, status, pricing } = params;
+                if (!user_id || !domain || !brand_name) return jsonResponse({ success: false, error: "缺少必填字段" });
+
+                const { data: agent, error } = await supabase.from("agents").insert({
+                    user_id, domain, brand_name, logo_url: logo_url || null,
+                    credits_rate: credits_rate || 100, status: status || 'active',
+                }).select().single();
+
+                if (error) { await logAudit("create_agent", null, { domain }, false, error.message); return jsonResponse({ success: false, error: error.message }); }
+
+                // 写入定价（管理员只设置成本价，售价默认为0，由代理自己设置）
+                if (pricing && pricing.length > 0) {
+                    const rows = pricing.map((p: any) => ({
+                        agent_id: agent.id, tier_id: p.tier_id,
+                        cost_price: p.cost_price, sell_price: 0, is_active: false,
+                    }));
+                    await supabase.from("agent_tier_pricing").insert(rows);
+                }
+
+                await logAudit("create_agent", null, { agent_id: agent.id, domain }, true);
+                return jsonResponse({ success: true, agent_id: agent.id });
+            }
+
+            case "update_agent": {
+                const { agent_id, domain, brand_name, logo_url, credits_rate, status, balance, pricing } = params;
+                if (!agent_id) return jsonResponse({ success: false, error: "缺少 agent_id" });
+
+                const updates: any = {};
+                if (domain !== undefined) updates.domain = domain;
+                if (brand_name !== undefined) updates.brand_name = brand_name;
+                if (logo_url !== undefined) updates.logo_url = logo_url;
+                if (credits_rate !== undefined) updates.credits_rate = credits_rate;
+                if (status !== undefined) updates.status = status;
+                if (balance !== undefined) updates.balance = balance;
+
+                const { error } = await supabase.from("agents").update(updates).eq("id", agent_id);
+                if (error) { await logAudit("update_agent", null, { agent_id }, false, error.message); return jsonResponse({ success: false, error: error.message }); }
+
+                // 更新定价（只更新成本价，保留代理设置的售价）
+                if (pricing) {
+                    for (const p of pricing) {
+                        // 先查询是否存在
+                        const { data: existing } = await supabase
+                            .from("agent_tier_pricing")
+                            .select("*")
+                            .eq("agent_id", agent_id)
+                            .eq("tier_id", p.tier_id)
+                            .maybeSingle();
+
+                        if (existing) {
+                            // 存在则只更新成本价
+                            await supabase.from("agent_tier_pricing")
+                                .update({ cost_price: p.cost_price })
+                                .eq("agent_id", agent_id)
+                                .eq("tier_id", p.tier_id);
+                        } else {
+                            // 不存在则插入新记录
+                            await supabase.from("agent_tier_pricing").insert({
+                                agent_id,
+                                tier_id: p.tier_id,
+                                cost_price: p.cost_price,
+                                sell_price: 0,
+                                is_active: false,
+                            });
+                        }
+                    }
+                }
+
+                await logAudit("update_agent", null, { agent_id, ...updates }, true);
+                return jsonResponse({ success: true });
+            }
+
+            case "process_withdrawal": {
+                const { withdrawal_id, action, admin_note } = params;
+                if (!withdrawal_id || !action) return jsonResponse({ success: false, error: "缺少参数" });
+
+                const { data: wd, error: wdErr } = await supabase
+                    .from("agent_withdrawals").select("*").eq("id", withdrawal_id).single();
+                if (wdErr || !wd) return jsonResponse({ success: false, error: "提现记录不存在" });
+                if (wd.status !== 'pending') return jsonResponse({ success: false, error: "该提现已处理" });
+
+                if (action === 'approve') {
+                    await supabase.from("agent_withdrawals").update({
+                        status: 'approved', admin_note: admin_note || null, processed_at: new Date().toISOString(),
+                    }).eq("id", withdrawal_id);
+                    await logAudit("approve_withdrawal", null, { withdrawal_id, amount: wd.amount, agent_id: wd.agent_id }, true);
+                } else if (action === 'reject') {
+                    // 退回余额
+                    const { data: agent } = await supabase.from("agents").select("balance").eq("id", wd.agent_id).single();
+                    const newBalance = Number(agent?.balance || 0) + Number(wd.amount);
+                    await supabase.from("agents").update({ balance: newBalance }).eq("id", wd.agent_id);
+                    await supabase.from("agent_withdrawals").update({
+                        status: 'rejected', admin_note: admin_note || null, processed_at: new Date().toISOString(),
+                    }).eq("id", withdrawal_id);
+                    await supabase.from("agent_transactions").insert({
+                        agent_id: wd.agent_id, type: 'withdrawal_reject',
+                        amount: Number(wd.amount), balance_after: newBalance,
+                        reference_id: withdrawal_id, description: '提现被拒绝，退回余额',
+                    });
+                    await logAudit("reject_withdrawal", null, { withdrawal_id, amount: wd.amount, agent_id: wd.agent_id }, true);
+                } else {
+                    return jsonResponse({ success: false, error: "action 必须是 approve 或 reject" });
+                }
+
+                return jsonResponse({ success: true });
             }
 
             default:

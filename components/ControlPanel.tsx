@@ -2307,7 +2307,7 @@ const ControlPanel: React.FC = memo(() => {
     const omniLimitReached = isOmni && omniTotalRefs >= 4;
 
     // 两级选择：Pro/Std 档位 + 模型类型
-    const klingTier: 'pro' | 'std' = klingModelVersion.includes('-std') ? 'std' : 'pro';
+    const klingTier: 'pro' | 'std' | '2.6-pro' = klingModelVersion === 'kling-2.6-pro' ? '2.6-pro' : (klingModelVersion.includes('-std') ? 'std' : 'pro');
     const klingType: 'base' | 'omni' | 'omni-v2v' = klingModelVersion.includes('-omni-')
       ? (klingModelVersion.endsWith('-v2v') ? 'omni-v2v' : 'omni')
       : 'base';
@@ -2315,7 +2315,21 @@ const ControlPanel: React.FC = memo(() => {
       'pro-base': 'kling-3-pro', 'pro-omni': 'kling-3-omni-pro', 'pro-omni-v2v': 'kling-3-omni-pro-v2v',
       'std-base': 'kling-3-std', 'std-omni': 'kling-3-omni-std', 'std-omni-v2v': 'kling-3-omni-std-v2v',
     };
-    const switchTier = (tier: 'pro' | 'std') => setKlingModelVersion(klingVersionMap[`${tier}-${klingType}`]);
+    const switchTier = (tier: 'pro' | 'std' | '2.6-pro') => {
+      if (tier === '2.6-pro') {
+        setKlingModelVersion('kling-2.6-pro');
+        // 自动调整时长到 5 或 10 秒
+        if (klingDuration !== 5 && klingDuration !== 10) {
+          setKlingDuration(5);
+        }
+        // 2.6 Pro cfg_scale 最大为 1
+        if (klingCfgScale > 1) {
+          setKlingCfgScale(0.5);
+        }
+      } else {
+        setKlingModelVersion(klingVersionMap[`${tier}-${klingType}`]);
+      }
+    };
     const switchType = (type: 'base' | 'omni' | 'omni-v2v') => setKlingModelVersion(klingVersionMap[`${klingTier}-${type}`]);
 
     return (
@@ -2330,7 +2344,7 @@ const ControlPanel: React.FC = memo(() => {
           </label>
 
           {/* Pro / Std 档位切换 */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <button
               onClick={() => switchTier('pro')}
               className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
@@ -2339,7 +2353,7 @@ const ControlPanel: React.FC = memo(() => {
                   : 'border-surface-border text-content hover:bg-surface-hover'
               }`}
             >
-              Pro
+              Kling 3 Pro
               <span className="block text-[10px] font-normal text-content-tertiary mt-0.5">{t('kling.proTierDesc')}</span>
             </button>
             <button
@@ -2350,56 +2364,69 @@ const ControlPanel: React.FC = memo(() => {
                   : 'border-surface-border text-content hover:bg-surface-hover'
               }`}
             >
-              Std
+              Kling 3 Std
               <span className="block text-[10px] font-normal text-content-tertiary mt-0.5">{t('kling.stdTierDesc')}</span>
+            </button>
+            <button
+              onClick={() => switchTier('2.6-pro')}
+              className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                klingTier === '2.6-pro'
+                  ? 'border-accent bg-accent-subtle text-accent'
+                  : 'border-surface-border text-content hover:bg-surface-hover'
+              }`}
+            >
+              Kling 2.6 Pro
+              <span className="block text-[10px] font-normal text-content-tertiary mt-0.5">经济实惠</span>
             </button>
           </div>
 
-          {/* 模型类型选择 */}
-          <div className="space-y-2">
-            <button
-              onClick={() => switchType('base')}
-              className={`w-full px-3 py-2 rounded-lg border text-sm text-left transition-all ${
-                klingType === 'base'
-                  ? 'border-accent bg-accent-subtle text-accent'
-                  : 'border-surface-border text-content hover:bg-surface-hover'
-              }`}
-            >
-              <div className="flex justify-between items-center">
-                <span>Kling 3{klingTier === 'pro' ? ' Pro' : ' Std'}</span>
-                <span className="text-xs text-content-tertiary">T2V + I2V</span>
-              </div>
-              <p className="text-xs text-content-tertiary mt-1">{t('kling.baseDesc')}</p>
-            </button>
-            <button
-              onClick={() => switchType('omni')}
-              className={`w-full px-3 py-2 rounded-lg border text-sm text-left transition-all ${
-                klingType === 'omni'
-                  ? 'border-accent bg-accent-subtle text-accent'
-                  : 'border-surface-border text-content hover:bg-surface-hover'
-              }`}
-            >
-              <div className="flex justify-between items-center">
-                <span>Kling 3 Omni{klingTier === 'pro' ? ' Pro' : ' Std'}</span>
-                <span className="text-xs text-content-tertiary">T2V + I2V</span>
-              </div>
-              <p className="text-xs text-content-tertiary mt-1">{t('kling.omniDesc')}</p>
-            </button>
-            <button
-              onClick={() => switchType('omni-v2v')}
-              className={`w-full px-3 py-2 rounded-lg border text-sm text-left transition-all ${
-                klingType === 'omni-v2v'
-                  ? 'border-accent bg-accent-subtle text-accent'
-                  : 'border-surface-border text-content hover:bg-surface-hover'
-              }`}
-            >
-              <div className="flex justify-between items-center">
-                <span>Kling 3 Omni{klingTier === 'pro' ? ' Pro' : ' Std'} V2V</span>
-                <span className="text-xs text-content-tertiary">V2V</span>
-              </div>
+          {/* 模型类型选择 - 仅 Kling 3 显示 */}
+          {klingTier !== '2.6-pro' && (
+            <div className="space-y-2">
+              <button
+                onClick={() => switchType('base')}
+                className={`w-full px-3 py-2 rounded-lg border text-sm text-left transition-all ${
+                  klingType === 'base'
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+                }`}
+              >
+                <div className="flex justify-between items-center">
+                  <span>Kling 3{klingTier === 'pro' ? ' Pro' : ' Std'}</span>
+                  <span className="text-xs text-content-tertiary">T2V + I2V</span>
+                </div>
+                <p className="text-xs text-content-tertiary mt-1">{t('kling.baseDesc')}</p>
+              </button>
+              <button
+                onClick={() => switchType('omni')}
+                className={`w-full px-3 py-2 rounded-lg border text-sm text-left transition-all ${
+                  klingType === 'omni'
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+                }`}
+              >
+                <div className="flex justify-between items-center">
+                  <span>Kling 3 Omni{klingTier === 'pro' ? ' Pro' : ' Std'}</span>
+                  <span className="text-xs text-content-tertiary">T2V + I2V</span>
+                </div>
+                <p className="text-xs text-content-tertiary mt-1">{t('kling.omniDesc')}</p>
+              </button>
+              <button
+                onClick={() => switchType('omni-v2v')}
+                className={`w-full px-3 py-2 rounded-lg border text-sm text-left transition-all ${
+                  klingType === 'omni-v2v'
+                    ? 'border-accent bg-accent-subtle text-accent'
+                    : 'border-surface-border text-content hover:bg-surface-hover'
+                }`}
+              >
+                <div className="flex justify-between items-center">
+                  <span>Kling 3 Omni{klingTier === 'pro' ? ' Pro' : ' Std'} V2V</span>
+                  <span className="text-xs text-content-tertiary">V2V</span>
+                </div>
               <p className="text-xs text-content-tertiary mt-1">{t('kling.v2vDesc')}</p>
             </button>
           </div>
+          )}
         </div>
 
         {/* V2V 模式 - 参考视频文件上传 */}
@@ -2445,7 +2472,7 @@ const ControlPanel: React.FC = memo(() => {
         )}
 
         {/* 模式提示 */}
-        {!isV2V && (
+        {!isV2V && klingModelVersion !== 'kling-2.6-pro' && (
           <div className="p-3 bg-accent/10 border border-accent/30 rounded-lg">
             <p className="text-xs text-accent">
               {videoFirstFrame ? t('runway.i2vMode') : t('runway.t2vMode')}
@@ -2453,8 +2480,8 @@ const ControlPanel: React.FC = memo(() => {
           </div>
         )}
 
-        {/* {t('wan.multiShot')}模式开关 - 仅 Pro 和 Omni Pro 支持，V2V 不支持 */}
-        {!isV2V && (
+        {/* {t('wan.multiShot')}模式开关 - 仅 Kling 3 支持，Kling 2.6 Pro 和 V2V 不支持 */}
+        {!isV2V && klingModelVersion !== 'kling-2.6-pro' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
@@ -2588,15 +2615,42 @@ const ControlPanel: React.FC = memo(() => {
               </Tooltip>
             </label>
             <div className="flex items-center space-x-3">
-              <input
-                type="range"
-                min="3"
-                max="15"
-                value={klingDuration}
-                onChange={(e) => setKlingDuration(parseInt(e.target.value) as KlingDuration)}
-                className="flex-1 h-2 bg-surface-border rounded-lg appearance-none cursor-pointer accent-accent"
-              />
-              <span className="text-sm text-content w-12 text-center">{klingDuration}s</span>
+              {klingModelVersion === 'kling-2.6-pro' ? (
+                <div className="flex gap-2 w-full">
+                  <button
+                    onClick={() => setKlingDuration(5)}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-sm transition-all ${
+                      klingDuration === 5
+                        ? 'border-accent bg-accent-subtle text-accent'
+                        : 'border-surface-border text-content hover:bg-surface-hover'
+                    }`}
+                  >
+                    5秒
+                  </button>
+                  <button
+                    onClick={() => setKlingDuration(10)}
+                    className={`flex-1 px-3 py-2 rounded-lg border text-sm transition-all ${
+                      klingDuration === 10
+                        ? 'border-accent bg-accent-subtle text-accent'
+                        : 'border-surface-border text-content hover:bg-surface-hover'
+                    }`}
+                  >
+                    10秒
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <input
+                    type="range"
+                    min="3"
+                    max="15"
+                    value={klingDuration}
+                    onChange={(e) => setKlingDuration(parseInt(e.target.value) as KlingDuration)}
+                    className="flex-1 h-2 bg-surface-border rounded-lg appearance-none cursor-pointer accent-accent"
+                  />
+                  <span className="text-sm text-content w-12 text-center">{klingDuration}s</span>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -2664,8 +2718,8 @@ const ControlPanel: React.FC = memo(() => {
           </div>
         )}
 
-        {/* CFG Scale - Pro/Std 和 V2V 支持 */}
-        {(klingModelVersion === 'kling-3-pro' || klingModelVersion === 'kling-3-std' || isV2V) && (
+        {/* CFG Scale - 所有 Kling 模型都支持 */}
+        {(klingModelVersion === 'kling-3-pro' || klingModelVersion === 'kling-3-std' || klingModelVersion === 'kling-2.6-pro' || isV2V) && (
           <div className="space-y-2">
             <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
               <Sparkles className="w-3 h-3" />
@@ -2678,7 +2732,7 @@ const ControlPanel: React.FC = memo(() => {
               <input
                 type="range"
                 min="0"
-                max="2"
+                max={klingModelVersion === 'kling-2.6-pro' ? "1" : "2"}
                 step="0.1"
                 value={klingCfgScale}
                 onChange={(e) => setKlingCfgScale(parseFloat(e.target.value))}
@@ -2689,8 +2743,8 @@ const ControlPanel: React.FC = memo(() => {
           </div>
         )}
 
-        {/* 负面提示词 - Pro/Std 和 V2V 支持 */}
-        {(klingModelVersion === 'kling-3-pro' || klingModelVersion === 'kling-3-std' || isV2V) && (
+        {/* 负面提示词 - 所有 Kling 模型都支持 */}
+        {(klingModelVersion === 'kling-3-pro' || klingModelVersion === 'kling-3-std' || klingModelVersion === 'kling-2.6-pro' || isV2V) && (
           <div className="space-y-2">
             <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
               <span>{t('prompt.negative')}</span>
@@ -2707,8 +2761,8 @@ const ControlPanel: React.FC = memo(() => {
           </div>
         )}
 
-        {/* 尾帧图片上传 - Pro 和 Omni Pro 支持，V2V 不支持 */}
-        {!isV2V && (
+        {/* 尾帧图片上传 - 仅 Kling 3 支持，Kling 2.6 Pro 和 V2V 不支持 */}
+        {!isV2V && klingModelVersion !== 'kling-2.6-pro' && (
           <div className="space-y-2">
             <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
               <ImageIcon className="w-3 h-3" />
@@ -2754,8 +2808,8 @@ const ControlPanel: React.FC = memo(() => {
           </div>
         )}
 
-        {/* 角色/物体参考 Elements - Pro/Std/Omni Pro/Omni Std，非 V2V */}
-        {!isV2V && (
+        {/* 角色/物体参考 Elements - Pro/Std/Omni Pro/Omni Std，非 V2V，非 2.6 Pro */}
+        {!isV2V && klingModelVersion !== 'kling-2.6-pro' && (
           <div className="space-y-2">
             <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
               <Users className="w-3 h-3" />
@@ -2894,25 +2948,27 @@ const ControlPanel: React.FC = memo(() => {
           </div>
         )}
 
-        {/* 随机种子 */}
-        <div className="space-y-2">
-          <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
-            <Hash className="w-3 h-3" />
-            <span>{t('image.seed')}</span>
-            <Tooltip text={t('kling.seedTooltip')}>
-              <HelpCircle className="w-3 h-3 cursor-help" />
-            </Tooltip>
-          </label>
-          <input
-            type="number"
-            defaultValue={klingSeed}
-            onBlur={(e) => setKlingSeed(e.target.value)}
-            placeholder={t('image.seedPlaceholder')}
-            min="0"
-            max="4294967295"
-            className="input w-full text-xs"
-          />
-        </div>
+        {/* 随机种子 - 仅 Kling 3 支持，Kling 2.6 Pro 不支持 */}
+        {klingModelVersion !== 'kling-2.6-pro' && (
+          <div className="space-y-2">
+            <label className="text-xs text-content-muted uppercase tracking-wider flex items-center space-x-1">
+              <Hash className="w-3 h-3" />
+              <span>{t('image.seed')}</span>
+              <Tooltip text={t('kling.seedTooltip')}>
+                <HelpCircle className="w-3 h-3 cursor-help" />
+              </Tooltip>
+            </label>
+            <input
+              type="number"
+              defaultValue={klingSeed}
+              onBlur={(e) => setKlingSeed(e.target.value)}
+              placeholder={t('image.seedPlaceholder')}
+              min="0"
+              max="4294967295"
+              className="input w-full text-xs"
+            />
+          </div>
+        )}
       </div>
     );
   };

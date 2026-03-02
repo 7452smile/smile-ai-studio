@@ -278,6 +278,7 @@ const Workspace: React.FC = memo(() => {
             'kling-3-omni-std': 'Kling 3 Omni Std',
             'kling-3-omni-pro-v2v': 'Kling 3 Omni Pro V2V',
             'kling-3-omni-std-v2v': 'Kling 3 Omni Std V2V',
+            'kling-2.6-pro': 'Kling 2.6 Pro',
             'minimax': t('workspace:modelLabels.minimax'),
             'wan': t('workspace:modelLabels.wan'),
             'runway': t('workspace:modelLabels.runway'),

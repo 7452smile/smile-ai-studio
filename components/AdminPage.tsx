@@ -2,12 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   BarChart3, Users, ShoppingCart, Activity, CreditCard, Key, Gift, Ticket,
   Search, ChevronLeft, ChevronRight, RefreshCw, Plus, Minus,
-  CheckCircle, XCircle, Clock, AlertTriangle, Copy, X, Shield, Eye, ChevronUp, ChevronDown
+  CheckCircle, XCircle, Clock, AlertTriangle, Copy, X, Shield, Eye, ChevronUp, ChevronDown, Store
 } from 'lucide-react';
 import { useGeneration } from '../context/GenerationContext';
 import { adminQuery, adminAction, supabase } from '../services/api';
 
-type AdminTab = 'overview' | 'users' | 'orders' | 'tasks' | 'subscriptions' | 'api_keys' | 'referrals' | 'redemption' | 'audit_log';
+type AdminTab = 'overview' | 'users' | 'orders' | 'tasks' | 'subscriptions' | 'api_keys' | 'referrals' | 'redemption' | 'audit_log' | 'agents';
 
 interface AdminOverviewData {
   total_users: number;
@@ -672,9 +672,12 @@ const ApiKeysTab: React.FC<{ phone: string; addNotification: any }> = ({ phone, 
   const [keys, setKeys] = useState<AdminApiKey[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [showBatchCredits, setShowBatchCredits] = useState(false);
   const [keysText, setKeysText] = useState('');
   const [initCredits, setInitCredits] = useState('');
+  const [batchCredits, setBatchCredits] = useState('');
   const [addLoading, setAddLoading] = useState(false);
+  const [batchCreditsLoading, setBatchCreditsLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -707,11 +710,26 @@ const ApiKeysTab: React.FC<{ phone: string; addNotification: any }> = ({ phone, 
     } else addNotification(res.error || '添加失败', '', 'error');
   };
 
+  const handleBatchSetCredits = async () => {
+    if (!batchCredits.trim()) return addNotification('请输入余额数值', '', 'error');
+    setBatchCreditsLoading(true);
+    const res = await adminAction(phone, 'batch_set_api_key_credits', { credits: Number(batchCredits) });
+    setBatchCreditsLoading(false);
+    if (res.success) {
+      addNotification(`已更新 ${res.count || 0} 个启用中的密钥余额为 ${batchCredits}`, '', 'success');
+      setShowBatchCredits(false); setBatchCredits('');
+      load();
+    } else addNotification(res.error || '操作失败', '', 'error');
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center space-x-3">
         <button onClick={() => setShowAdd(true)} className="btn-primary text-xs px-4 py-2 flex items-center space-x-1.5">
           <Plus className="w-3.5 h-3.5" /><span>批量添加密钥</span>
+        </button>
+        <button onClick={() => setShowBatchCredits(true)} className="text-xs px-4 py-2 rounded-lg border border-surface-border text-content hover:bg-surface-hover flex items-center space-x-1.5">
+          <RefreshCw className="w-3.5 h-3.5" /><span>批量修改余额</span>
         </button>
         <button onClick={load} className="p-2 hover:bg-surface-hover rounded-lg text-content-tertiary"><RefreshCw className="w-4 h-4" /></button>
       </div>
@@ -773,12 +791,30 @@ const ApiKeysTab: React.FC<{ phone: string; addNotification: any }> = ({ phone, 
           </div>
         </div>
       )}
+
+      {/* 批量修改余额弹窗 */}
+      {showBatchCredits && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowBatchCredits(false)}>
+          <div className="card p-6 w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-content">批量修改所有启用密钥余额</h3>
+              <button onClick={() => setShowBatchCredits(false)} className="text-content-tertiary hover:text-content"><X className="w-4 h-4" /></button>
+            </div>
+            <div>
+              <label className="block text-xs text-content-tertiary mb-1">新余额（将覆盖所有启用中密钥的当前余额）</label>
+              <input type="number" className="w-full bg-surface-overlay border border-surface-border rounded-lg px-3 py-2 text-sm text-content focus:outline-none focus:border-accent"
+                placeholder="如 10000" value={batchCredits} onChange={e => setBatchCredits(e.target.value)} />
+            </div>
+            <p className="text-xs text-amber-400">当前共 {keys.filter(k => k.is_active).length} 个启用中的密钥将被修改</p>
+            <button onClick={handleBatchSetCredits} disabled={batchCreditsLoading} className="w-full btn-primary text-sm py-2.5 disabled:opacity-50">
+              {batchCreditsLoading ? '修改中...' : '确认修改'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
-// ============================================================
-// 邀请返利 Tab
 // ============================================================
 interface AdminReferralReward {
   id: string;
@@ -1394,6 +1430,291 @@ const AuditLogTab: React.FC<{ phone: string }> = ({ phone }) => {
 };
 
 // ============================================================
+// 代理管理 Tab
+// ============================================================
+const AgentsTab: React.FC<{ phone: string; addNotification: any }> = ({ phone, addNotification }) => {
+  const [agents, setAgents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editAgent, setEditAgent] = useState<any>(null);
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [showWithdrawals, setShowWithdrawals] = useState(false);
+
+  // 创建/编辑表单
+  const [formUserId, setFormUserId] = useState('');
+  const [formDomain, setFormDomain] = useState('');
+  const [formBrandName, setFormBrandName] = useState('');
+  const [formLogoUrl, setFormLogoUrl] = useState('');
+  const [formCreditsRate, setFormCreditsRate] = useState(100);
+  const [formStatus, setFormStatus] = useState('active');
+  const [formBalance, setFormBalance] = useState(0);
+  const [formPricing, setFormPricing] = useState<{ tier_id: string; cost_price: number; sell_price: number }[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  const TIERS = ['starter', 'advanced', 'flagship', 'studio', 'enterprise'];
+  const TIER_NAMES: Record<string, string> = { starter: '入门版', advanced: '进阶版', flagship: '旗舰版', studio: '工作室版', enterprise: '企业版' };
+
+  const loadAgents = useCallback(async () => {
+    setLoading(true);
+    const res = await adminQuery(phone, 'agents');
+    if (res.success) setAgents(res.data || []);
+    setLoading(false);
+  }, [phone]);
+
+  useEffect(() => { loadAgents(); }, [loadAgents]);
+
+  const loadWithdrawals = useCallback(async () => {
+    const res = await adminQuery(phone, 'agent_withdrawals');
+    if (res.success) setWithdrawals(res.data || []);
+  }, [phone]);
+
+  const resetForm = () => {
+    setFormUserId(''); setFormDomain(''); setFormBrandName(''); setFormLogoUrl('');
+    setFormCreditsRate(100); setFormStatus('active'); setFormBalance(0);
+    setFormPricing(TIERS.map(t => ({ tier_id: t, cost_price: 0, sell_price: 0 })));
+  };
+
+  const openCreate = () => { resetForm(); setEditAgent(null); setShowCreate(true); };
+
+  const openEdit = (agent: any) => {
+    setFormUserId(agent.user_id);
+    setFormDomain(agent.domain);
+    setFormBrandName(agent.brand_name);
+    setFormLogoUrl(agent.logo_url || '');
+    setFormCreditsRate(agent.credits_rate);
+    setFormStatus(agent.status);
+    setFormBalance(Number(agent.balance));
+    setFormPricing(TIERS.map(t => {
+      const p = (agent.pricing || []).find((x: any) => x.tier_id === t);
+      return { tier_id: t, cost_price: p?.cost_price || 0, sell_price: p?.sell_price || 0 };
+    }));
+    setEditAgent(agent);
+    setShowCreate(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const action = editAgent ? 'update_agent' : 'create_agent';
+    const params: any = {
+      domain: formDomain, brand_name: formBrandName, logo_url: formLogoUrl || null,
+      credits_rate: formCreditsRate, status: formStatus,
+      // 管理员更新时发送所有定价（包括成本价为0的），创建时只发送有成本价的
+      pricing: editAgent ? formPricing : formPricing.filter(p => p.cost_price > 0),
+    };
+    if (editAgent) params.agent_id = editAgent.id;
+    else params.user_id = formUserId;
+    if (editAgent && formBalance !== Number(editAgent.balance)) params.balance = formBalance;
+
+    const res = await adminAction(phone, action, params);
+    if (res.success) {
+      addNotification(editAgent ? '代理已更新' : '代理已创建', '', 'success');
+      setShowCreate(false);
+      loadAgents();
+    } else {
+      addNotification('操作失败', res.error || '', 'error');
+    }
+    setSaving(false);
+  };
+
+  const handleWithdrawalAction = async (id: string, action: 'approve' | 'reject', note?: string) => {
+    const res = await adminAction(phone, 'process_withdrawal', { withdrawal_id: id, action, admin_note: note || '' });
+    if (res.success) {
+      addNotification(action === 'approve' ? '已批准提现' : '已拒绝提现', '', 'success');
+      loadWithdrawals();
+      loadAgents();
+    } else {
+      addNotification('操作失败', res.error || '', 'error');
+    }
+  };
+
+  if (loading) return <div className="flex items-center justify-center h-64 text-content-tertiary">加载中...</div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-sm font-medium text-content">代理列表 ({agents.length})</h3>
+        <div className="flex space-x-2">
+          <button onClick={() => { setShowWithdrawals(true); loadWithdrawals(); }}
+            className="flex items-center space-x-1 text-xs px-3 py-1.5 rounded-lg bg-surface-hover text-content-muted hover:text-content">
+            <CreditCard className="w-3 h-3" /><span>提现审批</span>
+          </button>
+          <button onClick={openCreate}
+            className="flex items-center space-x-1 text-xs px-3 py-1.5 rounded-lg bg-accent text-white hover:bg-accent/90">
+            <Plus className="w-3 h-3" /><span>创建代理</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 代理列表 */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-content-muted border-b border-surface-border">
+              <th className="px-3 py-2">品牌名</th>
+              <th className="px-3 py-2">域名</th>
+              <th className="px-3 py-2">余额</th>
+              <th className="px-3 py-2">积分汇率</th>
+              <th className="px-3 py-2">状态</th>
+              <th className="px-3 py-2">创建时间</th>
+              <th className="px-3 py-2">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {agents.map(a => (
+              <tr key={a.id} className="border-b border-surface-border/50 hover:bg-surface-hover/30">
+                <td className="px-3 py-2 text-content">{a.brand_name}</td>
+                <td className="px-3 py-2 text-content-secondary">{a.domain}</td>
+                <td className="px-3 py-2 text-emerald-400 font-medium">¥{Number(a.balance).toFixed(2)}</td>
+                <td className="px-3 py-2 text-content-muted">{a.credits_rate}</td>
+                <td className="px-3 py-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    a.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' :
+                    a.status === 'suspended' ? 'bg-amber-500/20 text-amber-400' :
+                    'bg-red-500/20 text-red-400'
+                  }`}>{a.status}</span>
+                </td>
+                <td className="px-3 py-2 text-content-muted">{new Date(a.created_at).toLocaleDateString()}</td>
+                <td className="px-3 py-2">
+                  <button onClick={() => openEdit(a)} className="text-xs text-accent hover:underline">编辑</button>
+                </td>
+              </tr>
+            ))}
+            {agents.length === 0 && (
+              <tr><td colSpan={7} className="text-center py-8 text-content-muted">暂无代理</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 创建/编辑弹窗 */}
+      {showCreate && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowCreate(false)}>
+          <div className="card p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center">
+              <h3 className="text-base font-semibold text-content">{editAgent ? '编辑代理' : '创建代理'}</h3>
+              <button onClick={() => setShowCreate(false)}><X className="w-4 h-4 text-content-muted" /></button>
+            </div>
+
+            {!editAgent && (
+              <div>
+                <label className="text-xs text-content-muted">用户 ID (UUID)</label>
+                <input value={formUserId} onChange={e => setFormUserId(e.target.value)} className="w-full mt-1 px-3 py-2 bg-surface border border-surface-border rounded-lg text-content placeholder:text-content-muted focus:outline-none focus:ring-2 focus:ring-accent" placeholder="关联用户的 UUID" />
+              </div>
+            )}
+            <div>
+              <label className="text-xs text-content-muted">域名</label>
+              <input value={formDomain} onChange={e => setFormDomain(e.target.value)} className="w-full mt-1 px-3 py-2 bg-surface border border-surface-border rounded-lg text-content placeholder:text-content-muted focus:outline-none focus:ring-2 focus:ring-accent" placeholder="ai.example.com" />
+            </div>
+            <div>
+              <label className="text-xs text-content-muted">品牌名</label>
+              <input value={formBrandName} onChange={e => setFormBrandName(e.target.value)} className="w-full mt-1 px-3 py-2 bg-surface border border-surface-border rounded-lg text-content placeholder:text-content-muted focus:outline-none focus:ring-2 focus:ring-accent" />
+            </div>
+            <div>
+              <label className="text-xs text-content-muted">Logo URL</label>
+              <input value={formLogoUrl} onChange={e => setFormLogoUrl(e.target.value)} className="w-full mt-1 px-3 py-2 bg-surface border border-surface-border rounded-lg text-content placeholder:text-content-muted focus:outline-none focus:ring-2 focus:ring-accent" placeholder="可选" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-content-muted">积分汇率 (积分/元)</label>
+                <input type="number" value={formCreditsRate} onChange={e => setFormCreditsRate(Number(e.target.value))} className="w-full mt-1 px-3 py-2 bg-surface border border-surface-border rounded-lg text-content placeholder:text-content-muted focus:outline-none focus:ring-2 focus:ring-accent" />
+              </div>
+              <div>
+                <label className="text-xs text-content-muted">状态</label>
+                <select value={formStatus} onChange={e => setFormStatus(e.target.value)} className="w-full mt-1 px-3 py-2 bg-surface border border-surface-border rounded-lg text-content focus:outline-none focus:ring-2 focus:ring-accent">
+                  <option value="active">active</option>
+                  <option value="suspended">suspended</option>
+                  <option value="disabled">disabled</option>
+                </select>
+              </div>
+            </div>
+            {editAgent && (
+              <div>
+                <label className="text-xs text-content-muted">余额调整</label>
+                <input type="number" value={formBalance} onChange={e => setFormBalance(Number(e.target.value))} className="w-full mt-1 px-3 py-2 bg-surface border border-surface-border rounded-lg text-content placeholder:text-content-muted focus:outline-none focus:ring-2 focus:ring-accent" step="0.01" />
+              </div>
+            )}
+
+            {/* 套餐定价 */}
+            <div>
+              <label className="text-xs text-content-muted mb-2 block">套餐成本价设置（代理将在代理中心设置售价）</label>
+              <div className="space-y-2">
+                {formPricing.map((p, i) => (
+                  <div key={p.tier_id} className="flex items-center space-x-2">
+                    <span className="text-xs text-content-secondary w-20">{TIER_NAMES[p.tier_id]}</span>
+                    <span className="text-xs text-content-muted">成本价:</span>
+                    <input type="number" value={p.cost_price} onChange={e => {
+                      const arr = [...formPricing]; arr[i] = { ...arr[i], cost_price: Number(e.target.value) }; setFormPricing(arr);
+                    }} className="w-24 px-2 py-1.5 bg-surface border border-surface-border rounded text-content placeholder:text-content-muted focus:outline-none focus:ring-2 focus:ring-accent" placeholder="成本价" step="0.01" />
+                    <span className="text-xs text-content-muted">元</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={handleSave} disabled={saving || !formDomain || !formBrandName}
+              className="btn-primary w-full py-2 text-sm disabled:opacity-50">
+              {saving ? '保存中...' : editAgent ? '保存修改' : '创建代理'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 提现审批弹窗 */}
+      {showWithdrawals && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowWithdrawals(false)}>
+          <div className="card p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-base font-semibold text-content">提现审批</h3>
+              <button onClick={() => setShowWithdrawals(false)}><X className="w-4 h-4 text-content-muted" /></button>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-content-muted border-b border-surface-border">
+                  <th className="px-3 py-2">代理</th>
+                  <th className="px-3 py-2">金额</th>
+                  <th className="px-3 py-2">状态</th>
+                  <th className="px-3 py-2">时间</th>
+                  <th className="px-3 py-2">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {withdrawals.map(w => (
+                  <tr key={w.id} className="border-b border-surface-border/50">
+                    <td className="px-3 py-2 text-content">{w.agent_brand_name || w.agent_id?.slice(0, 8)}</td>
+                    <td className="px-3 py-2 text-amber-400 font-medium">¥{Number(w.amount).toFixed(2)}</td>
+                    <td className="px-3 py-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        w.status === 'pending' ? 'bg-amber-500/20 text-amber-400' :
+                        w.status === 'approved' || w.status === 'paid' ? 'bg-emerald-500/20 text-emerald-400' :
+                        'bg-red-500/20 text-red-400'
+                      }`}>{w.status}</span>
+                    </td>
+                    <td className="px-3 py-2 text-content-muted">{new Date(w.created_at).toLocaleDateString()}</td>
+                    <td className="px-3 py-2 space-x-2">
+                      {w.status === 'pending' && (
+                        <>
+                          <button onClick={() => handleWithdrawalAction(w.id, 'approve')}
+                            className="text-xs text-emerald-400 hover:underline">批准</button>
+                          <button onClick={() => handleWithdrawalAction(w.id, 'reject')}
+                            className="text-xs text-red-400 hover:underline">拒绝</button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {withdrawals.length === 0 && (
+                  <tr><td colSpan={5} className="text-center py-8 text-content-muted">暂无提现记录</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============================================================
 // 主页面
 // ============================================================
 const AdminPage: React.FC = () => {
@@ -1410,6 +1731,7 @@ const AdminPage: React.FC = () => {
     { id: 'referrals', label: '邀请返利', icon: <Gift className="w-4 h-4" /> },
     { id: 'redemption', label: '兑换码', icon: <Ticket className="w-4 h-4" /> },
     { id: 'audit_log', label: '操作日志', icon: <Shield className="w-4 h-4" /> },
+    { id: 'agents', label: '代理管理', icon: <Store className="w-4 h-4" /> },
   ];
 
   const adminId = userPhone || userEmail || '';
@@ -1433,6 +1755,7 @@ const AdminPage: React.FC = () => {
       case 'referrals': return <ReferralsTab phone={adminId} />;
       case 'redemption': return <RedemptionTab phone={adminId} addNotification={addNotification} />;
       case 'audit_log': return <AuditLogTab phone={adminId} />;
+      case 'agents': return <AgentsTab phone={adminId} addNotification={addNotification} />;
     }
   };
 

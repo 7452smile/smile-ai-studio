@@ -48,6 +48,9 @@ const MODEL_GET_ENDPOINTS: Record<string, string> = {
     "kling-3-omni-pro-v2v": "/v1/ai/video/kling-v3-omni",
     // Kling 3 Omni Std V2V
     "kling-3-omni-std-v2v": "/v1/ai/video/kling-v3-omni",
+    // Kling 2.6 Pro
+    "kling-2.6-pro": "/v1/ai/image-to-video/kling-v2-6",
+    "kling-2.6-pro-i2v": "/v1/ai/image-to-video/kling-v2-6",
     // Magnific 高清放大
     "magnific-creative": "/v1/ai/image-upscaler",
     "magnific-precision": "/v1/ai/image-upscaler-precision-v2",

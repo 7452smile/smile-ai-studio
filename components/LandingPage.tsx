@@ -29,7 +29,7 @@ const TICKER_MODELS = ['Kling', 'Runway', 'Seedream', 'Minimax', 'Wan', 'Seedanc
 const LandingPage: React.FC<LandingPageProps> = ({ onLaunch }) => {
     const [showAuth, setShowAuth] = useState(false);
     const [footerModal, setFooterModal] = useState<'terms' | 'privacy' | 'help' | null>(null);
-    const { isLoggedIn, userPhone, userEmail, logout, setActiveMode } = useGeneration();
+    const { isLoggedIn, userPhone, userEmail, logout, setActiveMode, agentConfig } = useGeneration();
     const { t } = useTranslation('landing');
 
     const MODEL_SHOWCASE = MODEL_SHOWCASE_KEYS.map(m => ({
@@ -57,8 +57,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch }) => {
             {/* Navbar */}
             <nav className="fixed top-0 left-0 right-0 z-50 bg-[#09090b]/80 backdrop-blur-xl border-b border-white/5 px-6 py-4 flex justify-between items-center">
                 <div className="flex items-center space-x-3">
-                    <img src="/logo.png" alt="Smile AI" className="w-9 h-9 rounded-xl glow-gradient" />
-                    <span className="text-lg font-semibold tracking-tight">Smile AI Studio</span>
+                    <img src={agentConfig?.logo_url || "/logo.png"} alt={agentConfig?.brand_name || "Smile AI"} className="w-9 h-9 rounded-xl glow-gradient" />
+                    <span className="text-lg font-semibold tracking-tight">{agentConfig?.brand_name || 'Smile AI Studio'}</span>
                 </div>
                 <div className="hidden md:flex items-center space-x-8 text-sm text-zinc-400">
                     <a href="#features" className="hover:text-white transition-colors">{t('nav.features')}</a>
@@ -332,15 +332,15 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch }) => {
             <footer className="py-12 px-6 border-t border-white/5">
                 <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
                     <div className="flex items-center space-x-3">
-                        <img src="/logo.png" alt="Smile AI" className="w-8 h-8 rounded-lg" />
-                        <span className="font-semibold">Smile AI Studio</span>
+                        <img src={agentConfig?.logo_url || "/logo.png"} alt={agentConfig?.brand_name || "Smile AI"} className="w-8 h-8 rounded-lg" />
+                        <span className="font-semibold">{agentConfig?.brand_name || "Smile AI Studio"}</span>
                     </div>
                     <div className="flex items-center gap-6 text-sm text-zinc-500">
                         <button onClick={() => setFooterModal('terms')} className="hover:text-white transition-colors">{t('footer.terms')}</button>
                         <button onClick={() => setFooterModal('privacy')} className="hover:text-white transition-colors">{t('footer.privacy')}</button>
                         <button onClick={() => setFooterModal('help')} className="hover:text-white transition-colors">{t('footer.help')}</button>
                     </div>
-                    <p className="text-zinc-600 text-sm">&copy; 2026 Smile AI Studio</p>
+                    <p className="text-zinc-600 text-sm">&copy; 2026 {agentConfig?.brand_name || "Smile AI Studio"}</p>
                 </div>
             </footer>
 
@@ -363,9 +363,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch }) => {
 
                             {footerModal === 'terms' && (() => {
                                 const sections = t('footer.termsContent.sections', { returnObjects: true }) as any[];
+                                const brandName = agentConfig?.brand_name || "Smile AI Studio";
                                 return (
                                     <>
-                                        <h2 className="text-xl font-bold mb-1">{t('footer.termsContent.title')}</h2>
+                                        <h2 className="text-xl font-bold mb-1">{brandName} {t('footer.terms')}</h2>
                                         <p className="text-xs text-zinc-500 mb-6">{t('footer.termsContent.lastUpdate')}</p>
                                         {sections.map((s: any, i: number) => (
                                             <div key={i} className="mb-5">
@@ -389,9 +390,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLaunch }) => {
 
                             {footerModal === 'privacy' && (() => {
                                 const sections = t('footer.privacyContent.sections', { returnObjects: true }) as any[];
+                                const brandName = agentConfig?.brand_name || "Smile AI Studio";
                                 return (
                                     <>
-                                        <h2 className="text-xl font-bold mb-1">{t('footer.privacyContent.title')}</h2>
+                                        <h2 className="text-xl font-bold mb-1">{brandName} {t('footer.privacy')}</h2>
                                         <p className="text-xs text-zinc-500 mb-6">{t('footer.privacyContent.lastUpdate')}</p>
                                         {sections.map((s: any, i: number) => (
                                             <div key={i} className="mb-5">

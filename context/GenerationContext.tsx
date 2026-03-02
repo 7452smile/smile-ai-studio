@@ -39,9 +39,10 @@ import {
     MagnificOptimizedFor,
     MagnificEngine,
     PrecisionScaleFactor,
-    PrecisionFlavor
+    PrecisionFlavor,
+    AgentConfig
 } from '../types';
-import { generateSeedream, generateBanana, generateMinimaxVideo, generateWanVideo, generatePixVerseVideo, generateLtxVideo, generateRunwayVideo, generateKlingVideo, magnificUpscale, generateTTS, generateMusic, generateSoundEffect, uploadImageToR2, subscribeToTask, unsubscribeFromTask, getTaskStatus, getUserCredits, subscribeToUserCredits, unsubscribeFromUserCredits, getSubscription, ensureProfile, capturePaypalOrder, getHistory, deleteHistoryFromDB, supabase } from '../services/api';
+import { generateSeedream, generateBanana, generateMinimaxVideo, generateWanVideo, generatePixVerseVideo, generateLtxVideo, generateRunwayVideo, generateKlingVideo, magnificUpscale, generateTTS, generateMusic, generateSoundEffect, uploadImageToR2, subscribeToTask, unsubscribeFromTask, getTaskStatus, getUserCredits, subscribeToUserCredits, unsubscribeFromUserCredits, getSubscription, ensureProfile, capturePaypalOrder, getHistory, deleteHistoryFromDB, supabase, getAgentConfig } from '../services/api';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { estimateCreditsCost } from '../services/creditsCost';
 import { ADMIN_PHONES, ADMIN_EMAILS } from '../constants';
@@ -70,6 +71,8 @@ interface GenerationContextType {
     userEmail: string | null;
     userId: string | null;
     isAdmin: boolean;
+    isAgent: boolean;
+    agentConfig: AgentConfig | null;
     logout: () => void;
     setLoginState: (phone: string | null, id?: string, email?: string | null) => void;
 
@@ -302,6 +305,19 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
     const [userEmail, setUserEmail] = useState<string | null>(null);
     const [userId, setUserId] = useState<string | null>(null);
 
+    // Agent Config（代理站品牌配置）
+    // 使用 lazy initialization 避免闪烁
+    const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(() => {
+        // 在初始化时就检查是否是代理站
+        const hostname = window.location.hostname;
+        if (hostname === 'localhost' || hostname.includes('smile-ai-studio.com')) {
+            return null;
+        }
+        // 返回 null，但会立即触发加载
+        return null;
+    });
+    const [isAgent, setIsAgent] = useState(false);
+
     const LOGIN_PERSIST_DAYS = 30;
 
     useEffect(() => {
@@ -346,7 +362,8 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
                 localStorage.setItem('supabase-login-time', Date.now().toString());
 
                 // 调用 ensure-profile
-                const res = await ensureProfile(referralCode);
+                const agentDomain = window.location.hostname;
+                const res = await ensureProfile(referralCode, agentDomain);
                 if (res.success) {
                     localStorage.removeItem('referral_code');
                 }
@@ -461,6 +478,70 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
         if (email) setUserEmail(email);
         if (id) setUserId(id);
     }, []);
+
+    // ============================================================
+    // 代理配置加载 - 优先级最高，避免闪烁
+    // ============================================================
+    useEffect(() => {
+        const hostname = window.location.hostname;
+        console.log('[AgentConfig] Loading for hostname:', hostname);
+        if (hostname === 'localhost' || hostname.includes('smile-ai-studio.com')) {
+            console.log('[AgentConfig] Main site detected, skipping');
+            // 主站直接移除加载类
+            document.documentElement.classList.remove('agent-loading');
+            document.documentElement.classList.add('agent-loaded');
+            return;
+        }
+        getAgentConfig(hostname).then(res => {
+            console.log('[AgentConfig] Response:', res);
+            if (res?.agent) {
+                const config = res.agent;
+                setAgentConfig(config);
+
+                // 立即更新页面标题
+                document.title = config.brand_name;
+
+                // 立即更新 favicon
+                if (config.logo_url) {
+                    // 更新所有 favicon 链接
+                    const links = document.querySelectorAll("link[rel*='icon']");
+                    links.forEach(link => {
+                        (link as HTMLLinkElement).href = config.logo_url;
+                    });
+
+                    // 如果没有 favicon，创建一个
+                    if (links.length === 0) {
+                        const link = document.createElement('link');
+                        link.type = 'image/png';
+                        link.rel = 'icon';
+                        link.href = config.logo_url;
+                        document.head.appendChild(link);
+                    }
+                }
+
+                console.log('[AgentConfig] Loaded:', config);
+            } else {
+                console.log('[AgentConfig] No agent config found');
+            }
+
+            // 配置加载完成，移除加载类，显示内容
+            document.documentElement.classList.remove('agent-loading');
+            document.documentElement.classList.add('agent-loaded');
+        }).catch(err => {
+            console.error('[AgentConfig] Error:', err);
+            // 即使出错也要显示内容
+            document.documentElement.classList.remove('agent-loading');
+            document.documentElement.classList.add('agent-loaded');
+        });
+    }, []);
+
+    // 检查当前用户是否是代理
+    useEffect(() => {
+        if (!isLoggedIn || !userId) { setIsAgent(false); return; }
+        supabase.from('agents').select('id').eq('user_id', userId).eq('status', 'active').single()
+            .then(({ data }) => setIsAgent(!!data))
+            .catch(() => setIsAgent(false));
+    }, [isLoggedIn, userId]);
 
     // ============================================================
     // 用户积分
@@ -2343,7 +2424,7 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
             setLogs([]);
             addNotification(i18next.t('common:generation.generateFailed'), error.message || i18next.t('common:generation.unknownError'), 'error');
         }
-    }, [isLoggedIn, userId, userCredits, estimatedCost, activeMode, imageModel, imagePrompt, imageReferenceImages, imageSeed, imageAspectRatio, imageSafetyChecker, videoModel, videoPrompt, videoFirstFrame, minimaxModelVersion, minimaxResolution, minimaxDuration, minimaxPromptOptimizer, minimaxLastFrameImage, wanModelVersion, wanResolution, wanDuration, wanSize, wanNegativePrompt, wanEnablePromptExpansion, wanShotType, wanSeed, pixverseMode, pixverseResolution, pixverseDuration, pixverseNegativePrompt, pixverseStyle, pixverseSeed, pixverseLastFrameImage, ltxResolution, ltxDuration, ltxFps, ltxGenerateAudio, ltxSeed, runwayModelVersion, runwayRatio, runwayDuration, runwaySeed, klingModelVersion, klingDuration, klingAspectRatio, klingNegativePrompt, klingCfgScale, klingShotType, klingSeed, klingEndImage, klingReferenceVideo, klingElements, klingImageUrls, klingMultiPromptEnabled, klingMultiPrompts, klingGenerateAudio, upscaleModel, upscaleImageFile, upscalePrompt, ttsText, ttsVoiceId, ttsStability, ttsSimilarityBoost, ttsSpeed, ttsSpeakerBoost, musicPrompt, musicLengthSeconds, sfxText, sfxDuration, sfxLoop, sfxPromptInfluence, addNotification, addLog]);
+    }, [isLoggedIn, userId, userCredits, estimatedCost, activeMode, imageModel, imagePrompt, imageReferenceImages, imageSeed, imageAspectRatio, imageSafetyChecker, videoModel, videoPrompt, videoFirstFrame, minimaxModelVersion, minimaxResolution, minimaxDuration, minimaxPromptOptimizer, minimaxLastFrameImage, wanModelVersion, wanResolution, wanDuration, wanSize, wanNegativePrompt, wanEnablePromptExpansion, wanShotType, wanSeed, pixverseMode, pixverseResolution, pixverseDuration, pixverseNegativePrompt, pixverseStyle, pixverseSeed, pixverseLastFrameImage, ltxResolution, ltxDuration, ltxFps, ltxGenerateAudio, ltxSeed, runwayModelVersion, runwayRatio, runwayDuration, runwaySeed, klingModelVersion, klingDuration, klingAspectRatio, klingNegativePrompt, klingCfgScale, klingShotType, klingSeed, klingEndImage, klingReferenceVideo, klingElements, klingImageUrls, klingMultiPromptEnabled, klingMultiPrompts, klingGenerateAudio, upscaleModel, upscaleImageFile, upscaleImageDimensions, upscalePrompt, magnificScaleFactor, magnificOptimizedFor, magnificCreativity, magnificHdr, magnificResemblance, magnificFractality, magnificEngine, precisionScaleFactor, precisionFlavor, precisionSharpen, precisionSmartGrain, precisionUltraDetail, ttsText, ttsVoiceId, ttsStability, ttsSimilarityBoost, ttsSpeed, ttsSpeakerBoost, musicPrompt, musicLengthSeconds, sfxText, sfxDuration, sfxLoop, sfxPromptInfluence, addNotification, addLog]);
 
     const isAdmin = useMemo(() => {
         const phone = userPhone?.replace(/^\+86/, '') || '';
@@ -2362,7 +2443,7 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
     const contextValue = useMemo(() => ({
         activeMode, setActiveMode,
         status, result, logs, history, pendingTasks, notifications,
-        isLoggedIn, userPhone, userEmail, userId, isAdmin, logout, setLoginState,
+        isLoggedIn, userPhone, userEmail, userId, isAdmin, isAgent, agentConfig, logout, setLoginState,
         userCredits, estimatedCost,
         userSubscription,
         imageModel, setImageModel,
@@ -2468,7 +2549,7 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
         lightboxItem, setLightboxItem
     }), [
         activeMode, status, result, logs, history, pendingTasks, notifications,
-        isLoggedIn, userPhone, userEmail, userId, isAdmin, logout, setLoginState,
+        isLoggedIn, userPhone, userEmail, userId, isAdmin, isAgent, agentConfig, logout, setLoginState,
         userCredits, estimatedCost,
         userSubscription,
         imageModel, videoModel, upscaleModel,

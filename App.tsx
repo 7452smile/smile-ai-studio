@@ -16,6 +16,7 @@ const ModelPricingPage = lazy(() => import('./components/ModelPricingPage'));
 const ReferralPage = lazy(() => import('./components/ReferralPage'));
 const ImageToPromptPage = lazy(() => import('./components/ImageToPromptPage'));
 const CreditsHistoryPage = lazy(() => import('./components/CreditsHistoryPage'));
+const AgentPage = lazy(() => import('./components/AgentPage'));
 
 // 将主内容区域抽取为独立组件，避免不必要的重新渲染
 const MainContent: React.FC = memo(() => {
@@ -42,6 +43,9 @@ const MainContent: React.FC = memo(() => {
   }
   if (activeMode === AppMode.CreditsHistory) {
     return <CreditsHistoryPage />;
+  }
+  if (activeMode === AppMode.AgentPanel) {
+    return <AgentPage />;
   }
 
   // 标准布局（中间工作区 + 右侧控制面板）

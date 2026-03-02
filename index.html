@@ -15,6 +15,28 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Geist:wght@400;500;600;700&display=swap"
     rel="stylesheet">
   <script>
+    // 代理站预加载脚本 - 在 React 加载前执行，避免闪烁
+    (function() {
+      const hostname = window.location.hostname;
+      // 如果不是主站，添加一个加载类来隐藏内容直到代理配置加载完成
+      if (hostname !== 'localhost' && !hostname.includes('smile-ai-studio.com')) {
+        document.documentElement.classList.add('agent-loading');
+        // 添加样式来隐藏内容
+        const style = document.createElement('style');
+        style.textContent = `
+          .agent-loading #root {
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+          }
+          .agent-loaded #root {
+            opacity: 1;
+          }
+        `;
+        document.head.appendChild(style);
+      }
+    })();
+  </script>
+  <script>
     if (typeof process === 'undefined') {
       window.process = { env: {} };
     }

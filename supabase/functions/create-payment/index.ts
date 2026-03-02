@@ -47,7 +47,7 @@ serve(async (req) => {
     if (corsResp) return corsResp;
 
     try {
-        const { user_id: bodyUserId, user_phone: bodyPhone, tier_id, billing_cycle, pay_type = "alipay" } = await req.json();
+        const { user_id: bodyUserId, user_phone: bodyPhone, tier_id, billing_cycle, pay_type = "alipay", agent_domain } = await req.json();
         const user_id = await getAuthenticatedUserId(req, bodyUserId);
 
         if (!user_id) return jsonResponse({ error: "缺少用户信息" }, 400);
@@ -55,6 +55,32 @@ serve(async (req) => {
         if (!["monthly", "annual"].includes(billing_cycle)) return jsonResponse({ error: "无效的计费周期" }, 400);
 
         const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+        // 查询代理信息（如果有 agent_domain）
+        let agentId: string | null = null;
+        let agentDomain: string | null = null;
+        let agentSellPrice: number | null = null;
+        if (agent_domain) {
+            const { data: agent } = await supabase
+                .from("agents")
+                .select("id, domain")
+                .eq("domain", agent_domain)
+                .eq("status", "active")
+                .single();
+            if (agent) {
+                agentId = agent.id;
+                agentDomain = agent.domain;
+                // 查询代理售价
+                const { data: pricing } = await supabase
+                    .from("agent_tier_pricing")
+                    .select("sell_price")
+                    .eq("agent_id", agent.id)
+                    .eq("tier_id", tier_id)
+                    .eq("is_active", true)
+                    .single();
+                if (pricing) agentSellPrice = pricing.sell_price;
+            }
+        }
 
         // 查询套餐价格
         const { data: tier, error: tierError } = await supabase
@@ -77,10 +103,18 @@ serve(async (req) => {
             amount = usdPrice;
             currency = "USD";
         } else {
-            amount = billing_cycle === "annual" ? tier.annual_price : tier.monthly_price;
+            // 代理站使用代理售价
+            if (agentSellPrice !== null) {
+                amount = agentSellPrice;
+            } else {
+                amount = billing_cycle === "annual" ? tier.annual_price : tier.monthly_price;
+            }
             currency = "CNY";
         }
         if (amount <= 0) return jsonResponse({ error: "无效的金额" }, 400);
+
+        // 确定 return_url 域名（代理站跳回代理域名）
+        const returnDomain = agentDomain ? `https://${agentDomain}` : FRONTEND_URL;
 
         // 生成订单号
         const out_trade_no = `SAI${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
@@ -102,8 +136,8 @@ serve(async (req) => {
                 payment_source: {
                     paypal: {
                         experience_context: {
-                            return_url: `${FRONTEND_URL}/?out_trade_no=${out_trade_no}`,
-                            cancel_url: `${FRONTEND_URL}/?payment_status=cancelled`,
+                            return_url: `${returnDomain}/?out_trade_no=${out_trade_no}`,
+                            cancel_url: `${returnDomain}/?payment_status=cancelled`,
                             brand_name: "Smile AI Studio",
                             user_action: "PAY_NOW",
                         },
@@ -146,6 +180,7 @@ serve(async (req) => {
                     pay_type: "paypal",
                     paypal_order_id: ppData.id,
                     status: "pending",
+                    agent_id: agentId,
                 });
 
             if (insertError) {
@@ -180,6 +215,7 @@ serve(async (req) => {
                     currency,
                     pay_type,
                     status: "pending",
+                    agent_id: agentId,
                 });
 
             if (insertError) {

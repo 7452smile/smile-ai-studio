@@ -124,6 +124,21 @@ serve(async (req) => {
             }
         }
 
+        // 代理分成（非关键路径）
+        try {
+            const { data: agentResult, error: agentError } = await supabase.rpc(
+                "process_agent_commission",
+                { p_out_trade_no: out_trade_no }
+            );
+            if (agentError) {
+                console.error("[paypal-capture] Agent commission error:", agentError);
+            } else if (agentResult?.success && !agentResult?.already_processed) {
+                console.log("[paypal-capture] Agent commission granted:", JSON.stringify(agentResult));
+            }
+        } catch (e) {
+            console.error("[paypal-capture] Agent commission exception:", e);
+        }
+
         return jsonResponse({ success: true });
 
     } catch (error) {

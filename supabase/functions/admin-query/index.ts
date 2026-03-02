@@ -434,6 +434,40 @@ serve(async (req) => {
                 return jsonResponse({ success: true, data: enriched });
             }
 
+            case "agents": {
+                const { data: agents } = await supabase
+                    .from("agents")
+                    .select("*")
+                    .order("created_at", { ascending: false });
+                // 附加定价信息
+                const enriched = [];
+                for (const a of (agents || [])) {
+                    const { data: pricing } = await supabase
+                        .from("agent_tier_pricing")
+                        .select("tier_id, cost_price, sell_price, is_active")
+                        .eq("agent_id", a.id);
+                    enriched.push({ ...a, pricing: pricing || [] });
+                }
+                return jsonResponse({ success: true, data: enriched });
+            }
+
+            case "agent_withdrawals": {
+                const { data: wds } = await supabase
+                    .from("agent_withdrawals")
+                    .select("*")
+                    .order("created_at", { ascending: false })
+                    .limit(100);
+                // 附加代理品牌名
+                const agentIds = [...new Set((wds || []).map((w: any) => w.agent_id))];
+                const nameMap: Record<string, string> = {};
+                if (agentIds.length > 0) {
+                    const { data: agts } = await supabase.from("agents").select("id, brand_name").in("id", agentIds);
+                    for (const a of (agts || [])) nameMap[a.id] = a.brand_name;
+                }
+                const enriched = (wds || []).map((w: any) => ({ ...w, agent_brand_name: nameMap[w.agent_id] || '' }));
+                return jsonResponse({ success: true, data: enriched });
+            }
+
             default:
                 return jsonResponse({ success: false, error: `未知查询类型: ${query_type}` }, 400);
         }

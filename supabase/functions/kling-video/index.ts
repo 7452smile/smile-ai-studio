@@ -20,6 +20,7 @@ const getKlingCreditsCost = (modelVersion: string, duration: number, generateAud
         'kling-3-omni-pro-v2v': 28,
         'kling-3-omni-std':     22,
         'kling-3-omni-std-v2v': 22,
+        'kling-2.6-pro':        14,
     };
     const noAudioRates: Record<string, number> = {
         'kling-3-pro':          23,
@@ -28,6 +29,7 @@ const getKlingCreditsCost = (modelVersion: string, duration: number, generateAud
         'kling-3-omni-pro-v2v': 22,
         'kling-3-omni-std':     17,
         'kling-3-omni-std-v2v': 17,
+        'kling-2.6-pro':        7,
     };
     const rates = generateAudio ? audioRates : noAudioRates;
     return Math.round(duration * (rates[modelVersion] || (generateAudio ? 39 : 23)));
@@ -81,7 +83,7 @@ serve(async (req) => {
         }
 
         // 验证模型版本
-        const validModels = ['kling-3-pro', 'kling-3-std', 'kling-3-omni-pro', 'kling-3-omni-std', 'kling-3-omni-pro-v2v', 'kling-3-omni-std-v2v'];
+        const validModels = ['kling-3-pro', 'kling-3-std', 'kling-3-omni-pro', 'kling-3-omni-std', 'kling-3-omni-pro-v2v', 'kling-3-omni-std-v2v', 'kling-2.6-pro'];
         if (!validModels.includes(model_version)) {
             return jsonResponse({ error: "无效的模型版本" }, 400);
         }
@@ -111,6 +113,8 @@ serve(async (req) => {
             endpoint = "/v1/ai/video/kling-v3-omni-std";
         } else if (model_version === 'kling-3-std') {
             endpoint = "/v1/ai/video/kling-v3-std";
+        } else if (model_version === 'kling-2.6-pro') {
+            endpoint = "/v1/ai/image-to-video/kling-v2-6-pro";
         } else {
             endpoint = "/v1/ai/video/kling-v3-pro";
         }
@@ -122,78 +126,96 @@ serve(async (req) => {
             generate_audio
         };
 
-        // prompt 或 multi_prompt（二选一）
-        if (multi_prompt && multi_prompt.length > 0) {
-            // 验证多镜头数量
-            if (multi_prompt.length > 6) {
-                return jsonResponse({ error: "多镜头最多支持 6 个" }, 400);
-            }
-            requestBody.multi_prompt = multi_prompt;
-            // 使用 multi_prompt 时，shot_type 应为 customize
-            if (model_version === 'kling-3-pro' || model_version === 'kling-3-std') {
-                requestBody.shot_type = 'customize';
-            }
-        } else if (prompt) {
-            requestBody.prompt = prompt;
-        }
-
-        // 添加可选参数（根据模型版本）
-        // negative_prompt: Pro/Std 和 V2V 支持
-        if (negative_prompt && (model_version === 'kling-3-pro' || model_version === 'kling-3-std' || isV2V)) {
-            requestBody.negative_prompt = negative_prompt;
-        }
-        // cfg_scale: Pro/Std 和 V2V 支持
-        if (cfg_scale !== undefined && cfg_scale !== 0.5 && (model_version === 'kling-3-pro' || model_version === 'kling-3-std' || isV2V)) {
-            requestBody.cfg_scale = cfg_scale;
-        }
-        // shot_type: Pro/Std 支持 customize/intelligent
-        if (shot_type && (model_version === 'kling-3-pro' || model_version === 'kling-3-std') && !multi_prompt?.length) {
-            requestBody.shot_type = shot_type;
-        }
-
-        // 上传首帧图片到 R2（如果有）
+        // 图片上传 URL（用于任务记录）
         let uploadedStartImageUrl: string | null = null;
-        if (start_image) {
-            try {
-                uploadedStartImageUrl = await ensureImageUrl(start_image, "kling_start_frame.png");
-                // Kling 3 Pro 使用 start_image_url，Omni 使用 image_url
-                if (model_version === 'kling-3-pro' || model_version === 'kling-3-std') {
-                    requestBody.start_image_url = uploadedStartImageUrl;
-                } else {
-                    requestBody.image_url = uploadedStartImageUrl;
-                }
-            } catch (uploadError) {
-                console.error("Start image upload error:", uploadError);
-                return jsonResponse({ error: "首帧图片上传失败" }, 500);
-            }
-        }
-
-        // 上传尾帧图片到 R2（如果有，V2V 不支持）
         let uploadedEndImageUrl: string | null = null;
-        if (end_image && !isV2V) {
-            try {
-                uploadedEndImageUrl = await ensureImageUrl(end_image, "kling_end_frame.png");
-                requestBody.end_image_url = uploadedEndImageUrl;
-            } catch (uploadError) {
-                console.error("End image upload error:", uploadError);
-                return jsonResponse({ error: "尾帧图片上传失败" }, 500);
+
+        // Kling 2.6 Pro 使用简化的参数结构
+        if (model_version === 'kling-2.6-pro') {
+            if (prompt) {
+                requestBody.prompt = prompt;
             }
-        }
+            if (negative_prompt) {
+                requestBody.negative_prompt = negative_prompt;
+            }
+            if (cfg_scale !== undefined && cfg_scale !== 0.5) {
+                requestBody.cfg_scale = Math.min(cfg_scale, 1);
+            }
+            // 2.6 Pro aspect_ratio 格式转换
+            const arMap: Record<string, string> = { '16:9': 'widescreen_16_9', '9:16': 'social_story_9_16', '1:1': 'square_1_1' };
+            requestBody.aspect_ratio = arMap[aspect_ratio] || 'widescreen_16_9';
+            // 上传图片到 R2（如果有）
+            if (start_image) {
+                try {
+                    uploadedStartImageUrl = await ensureImageUrl(start_image, "kling_2.6_image.png");
+                    requestBody.image = uploadedStartImageUrl;
+                } catch (uploadError) {
+                    console.error("Image upload error:", uploadError);
+                    return jsonResponse({ error: "图片上传失败" }, 500);
+                }
+            }
+        } else {
+            // Kling 3 系列的参数处理
+            if (multi_prompt && multi_prompt.length > 0) {
+                if (multi_prompt.length > 6) {
+                    return jsonResponse({ error: "多镜头最多支持 6 个" }, 400);
+                }
+                requestBody.multi_prompt = multi_prompt;
+                if (model_version === 'kling-3-pro' || model_version === 'kling-3-std') {
+                    requestBody.shot_type = 'customize';
+                }
+            } else if (prompt) {
+                requestBody.prompt = prompt;
+            }
 
-        // V2V 模式添加参考视频 URL
-        if (isV2V && reference_video) {
-            requestBody.video_url = reference_video;
-        }
+            if (negative_prompt && (model_version === 'kling-3-pro' || model_version === 'kling-3-std' || isV2V)) {
+                requestBody.negative_prompt = negative_prompt;
+            }
+            if (cfg_scale !== undefined && cfg_scale !== 0.5 && (model_version === 'kling-3-pro' || model_version === 'kling-3-std' || isV2V)) {
+                requestBody.cfg_scale = cfg_scale;
+            }
+            if (shot_type && (model_version === 'kling-3-pro' || model_version === 'kling-3-std') && !multi_prompt?.length) {
+                requestBody.shot_type = shot_type;
+            }
 
-        // elements: Pro/Std/Omni Pro/Omni Std 支持（V2V 不支持）
-        if (elements?.length && !isV2V) {
-            requestBody.elements = elements;
-        }
+            // 上传首帧图片到 R2
+            if (start_image) {
+                try {
+                    uploadedStartImageUrl = await ensureImageUrl(start_image, "kling_start_frame.png");
+                    if (model_version === 'kling-3-pro' || model_version === 'kling-3-std') {
+                        requestBody.start_image_url = uploadedStartImageUrl;
+                    } else {
+                        requestBody.image_url = uploadedStartImageUrl;
+                    }
+                } catch (uploadError) {
+                    console.error("Start image upload error:", uploadError);
+                    return jsonResponse({ error: "首帧图片上传失败" }, 500);
+                }
+            }
 
-        // image_urls: 仅 Omni Pro/Omni Std 支持
-        const isOmni = ['kling-3-omni-pro', 'kling-3-omni-std'].includes(model_version);
-        if (image_urls?.length && isOmni) {
-            requestBody.image_urls = image_urls;
+            // 上传尾帧图片到 R2（V2V 不支持）
+            if (end_image && !isV2V) {
+                try {
+                    uploadedEndImageUrl = await ensureImageUrl(end_image, "kling_end_frame.png");
+                    requestBody.end_image_url = uploadedEndImageUrl;
+                } catch (uploadError) {
+                    console.error("End image upload error:", uploadError);
+                    return jsonResponse({ error: "尾帧图片上传失败" }, 500);
+                }
+            }
+
+            if (isV2V && reference_video) {
+                requestBody.video_url = reference_video;
+            }
+
+            if (elements?.length && !isV2V) {
+                requestBody.elements = elements;
+            }
+
+            const isOmni = ['kling-3-omni-pro', 'kling-3-omni-std'].includes(model_version);
+            if (image_urls?.length && isOmni) {
+                requestBody.image_urls = image_urls;
+            }
         }
 
         // 添加 webhook URL

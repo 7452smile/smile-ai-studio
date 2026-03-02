@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifySign } from "../_shared/subscription.ts";
 
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const ZPAYZ_PID = Deno.env.get("ZPAYZ_PID") || "";
 const ZPAYZ_PKEY = Deno.env.get("ZPAYZ_PKEY") || "";
 
@@ -27,14 +30,37 @@ serve(async (req) => {
             return Response.redirect(`${FRONTEND_URL}/?payment_status=error`, 302);
         }
 
+        // 查询订单的代理信息，决定跳转域名
+        let redirectBase = FRONTEND_URL;
+        try {
+            const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+            const { data: order } = await supabase
+                .from("payment_orders")
+                .select("agent_id")
+                .eq("out_trade_no", out_trade_no)
+                .single();
+            if (order?.agent_id) {
+                const { data: agent } = await supabase
+                    .from("agents")
+                    .select("domain")
+                    .eq("id", order.agent_id)
+                    .single();
+                if (agent?.domain) {
+                    redirectBase = `https://${agent.domain}`;
+                }
+            }
+        } catch (e) {
+            console.error("[payment-return] Agent lookup error:", e);
+        }
+
         if (trade_status === "TRADE_SUCCESS") {
             return Response.redirect(
-                `${FRONTEND_URL}/?payment_status=success&out_trade_no=${out_trade_no}`,
+                `${redirectBase}/?payment_status=success&out_trade_no=${out_trade_no}`,
                 302
             );
         }
 
-        return Response.redirect(`${FRONTEND_URL}/?payment_status=pending`, 302);
+        return Response.redirect(`${redirectBase}/?payment_status=pending`, 302);
 
     } catch (error) {
         console.error("[payment-return] Error:", error);

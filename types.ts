@@ -12,6 +12,7 @@ export enum AppMode {
   TextToSpeech = 'text-to-speech',
   SoundEffect = 'sound-effect',
   MusicGeneration = 'music-generation',
+  AgentPanel = 'agent-panel',
 }
 
 export type ImageModelType = 'seedream' | 'banana';
@@ -66,7 +67,7 @@ export type RunwayRatio = '1280:720' | '720:1280' | '1104:832' | '960:960' | '83
 export type RunwayDuration = 5 | 8 | 10;
 
 // Kling 3 视频生成参数
-export type KlingModelVersion = 'kling-3-pro' | 'kling-3-std' | 'kling-3-omni-pro' | 'kling-3-omni-std' | 'kling-3-omni-pro-v2v' | 'kling-3-omni-std-v2v';
+export type KlingModelVersion = 'kling-3-pro' | 'kling-3-std' | 'kling-3-omni-pro' | 'kling-3-omni-std' | 'kling-3-omni-pro-v2v' | 'kling-3-omni-std-v2v' | 'kling-2.6-pro';
 export type KlingAspectRatio = 'auto' | '16:9' | '9:16' | '1:1';
 export type KlingDuration = 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
 export type KlingShotType = 'customize' | 'intelligent';
@@ -207,9 +208,56 @@ export interface RedemptionCode {
   max_uses: number;
   current_uses: number;
   description: string | null;
-  code_type: 'promo' | 'new_user';
+  code_type: 'promo' | 'new_user' | 'subscription';
   is_active: boolean;
   expires_at: string | null;
   created_by: string | null;
   created_at: string;
+  agent_id?: string | null;
+}
+
+// ============================================================
+// 代理系统类型
+// ============================================================
+
+export interface AgentConfig {
+  id: string;
+  brand_name: string;
+  logo_url: string | null;
+  domain: string;
+  tier_pricing: { tier_id: string; sell_price: number }[];
+}
+
+export interface AgentInfo {
+  id: string;
+  user_id: string;
+  domain: string;
+  brand_name: string;
+  logo_url: string | null;
+  balance: number;
+  credits_rate: number;
+  status: 'active' | 'suspended' | 'disabled';
+  payment_info: any;
+  created_at: string;
+}
+
+export interface AgentTransaction {
+  id: string;
+  agent_id: string;
+  type: string;
+  amount: number;
+  balance_after: number;
+  reference_id: string | null;
+  description: string | null;
+  created_at: string;
+}
+
+export interface AgentWithdrawal {
+  id: string;
+  agent_id: string;
+  amount: number;
+  status: 'pending' | 'approved' | 'rejected' | 'paid';
+  admin_note: string | null;
+  created_at: string;
+  processed_at: string | null;
 }

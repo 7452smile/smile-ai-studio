@@ -6,7 +6,7 @@ import { getReferralInfo } from '../services/api';
 import { ReferralInfo } from '../types';
 
 const ReferralPage: React.FC = () => {
-    const { isLoggedIn, userId } = useGeneration();
+    const { isLoggedIn, userId, agentConfig } = useGeneration();
     const { t, i18n } = useTranslation('common');
     const r = (key: string) => t(`referral.${key}`);
     const [info, setInfo] = useState<ReferralInfo | null>(null);
@@ -33,9 +33,10 @@ const ReferralPage: React.FC = () => {
 
     const handleCopy = async (type: 'code' | 'link') => {
         if (!info?.referralCode) return;
+        const domain = agentConfig?.domain || window.location.hostname || 'www.smile-ai-studio.com';
         const text = type === 'code'
             ? info.referralCode
-            : `https://www.smile-ai-studio.com/?ref=${info.referralCode}`;
+            : `https://${domain}/?ref=${info.referralCode}`;
         await navigator.clipboard.writeText(text);
         setCopied(type);
         setTimeout(() => setCopied(null), 2000);

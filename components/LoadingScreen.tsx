@@ -1,9 +1,11 @@
 import React from 'react';
 import { Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useGeneration } from '../context/GenerationContext';
 
 const LoadingScreen: React.FC = () => {
     const { t } = useTranslation('common');
+    const { agentConfig } = useGeneration();
     return (
         <div className="fixed inset-0 bg-surface flex flex-col items-center justify-center z-[9999]">
             <div className="absolute inset-0 landing-gradient-bg opacity-50"></div>
@@ -16,7 +18,7 @@ const LoadingScreen: React.FC = () => {
                 </div>
             </div>
             <div className="mt-8 text-center">
-                <h1 className="text-xl font-semibold font-display text-content">Smile AI Studio</h1>
+                <h1 className="text-xl font-semibold font-display text-content">{agentConfig?.brand_name || 'Smile AI Studio'}</h1>
                 <p className="mt-2 text-sm text-content-tertiary">{t('loading.text')}</p>
             </div>
             <div className="mt-8 w-48">

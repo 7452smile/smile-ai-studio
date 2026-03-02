@@ -10,7 +10,7 @@ serve(async (req) => {
   if (corsResp) return corsResp;
 
   try {
-    const { phone, email, code, referral_code } = await req.json();
+    const { phone, email, code, referral_code, agent_domain } = await req.json();
 
     // 验证参数：phone 或 email 二选一
     if ((!phone && !email) || !code) {
@@ -91,6 +91,28 @@ serve(async (req) => {
       } else {
         profileData.phone = phone;
         profileData.nickname = `用户${phone.slice(-4)}`;
+      }
+
+      // 代理归属
+      if (agent_domain) {
+        try {
+          // 标准化域名：去掉协议和尾部斜杠
+          const normalizedDomain = agent_domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+          const { data: agent } = await supabase
+            .from("agents")
+            .select("id, domain")
+            .eq("status", "active");
+
+          // 查找匹配的代理（容错处理）
+          const matchedAgent = agent?.find(a => {
+            const dbDomain = a.domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+            return dbDomain === normalizedDomain;
+          });
+
+          if (matchedAgent) profileData.agent_id = matchedAgent.id;
+        } catch (e) {
+          console.error("[verify-code] agent lookup error:", e);
+        }
       }
 
       const { error: profileError } = await supabase

@@ -7,6 +7,7 @@ import {
   REMOVE_BG_CREDITS_COST,
   TTS_CREDITS_PER_1000_CHARS,
   MUSIC_CREDITS_PER_SECOND,
+  SOUND_EFFECT_CREDITS_COST,
   getMinimaxCreditsCost,
   getWanCreditsCost,
   getPixVerseCreditsCost,
@@ -105,6 +106,7 @@ const ModelPricingPage: React.FC = () => {
                 <p><span className="text-content-secondary font-medium">Std</span>: {mp('withAudio')} 31 {mp('perSecond')} / {mp('withoutAudio')} 17 {mp('perSecond')}</p>
                 <p><span className="text-content-secondary font-medium">Omni Pro / V2V</span>: {mp('withAudio')} 28 {mp('perSecond')} / {mp('withoutAudio')} 22 {mp('perSecond')}</p>
                 <p><span className="text-content-secondary font-medium">Omni Std / V2V</span>: {mp('withAudio')} 22 {mp('perSecond')} / {mp('withoutAudio')} 17 {mp('perSecond')}</p>
+                <p><span className="text-content-secondary font-medium">2.6 Pro</span>: {mp('withAudio')} 14 {mp('perSecond')} / {mp('withoutAudio')} 7 {mp('perSecond')}</p>
                 <p className="text-content-tertiary/60 mt-1">3-15s</p>
               </div>
             </VideoModelCard>
@@ -212,28 +214,18 @@ const ModelPricingPage: React.FC = () => {
           <p className="text-xs text-content-tertiary mt-3">{mp('removeBgNote').replace('{{cost}}', String(REMOVE_BG_CREDITS_COST))}</p>
         </section>
 
-        {/* TTS */}
+        {/* Audio Workshop */}
         <section>
-          <SectionTitle icon={<Volume2 className="w-4 h-4 text-pink-400" />} title={mp('tabs.tts')} />
+          <SectionTitle icon={<Volume2 className="w-4 h-4 text-pink-400" />} title="音频工坊" />
           <PricingTable creditLabel={creditLabel}
             headers={[h('model'), h('billingRule'), h('credits')]}
             rows={[
-              ['ElevenLabs Turbo v2.5', mp('ttsRule'), TTS_CREDITS_PER_1000_CHARS],
+              ['TTS - ElevenLabs Turbo v2.5', mp('ttsRule'), TTS_CREDITS_PER_1000_CHARS],
+              ['音乐生成', mp('musicRule'), MUSIC_CREDITS_PER_SECOND],
+              ['音效生成', '每次生成', SOUND_EFFECT_CREDITS_COST],
             ]}
           />
-          <p className="text-xs text-content-tertiary mt-3">{mp('ttsNote')}</p>
-        </section>
-
-        {/* Music Generation */}
-        <section>
-          <SectionTitle icon={<Music className="w-4 h-4 text-violet-400" />} title={mp('tabs.music')} />
-          <PricingTable creditLabel={creditLabel}
-            headers={[h('model'), h('billingRule'), h('credits')]}
-            rows={[
-              ['Freepik Music Generation', mp('musicRule'), MUSIC_CREDITS_PER_SECOND],
-            ]}
-          />
-          <p className="text-xs text-content-tertiary mt-3">{mp('musicNote')}</p>
+          <p className="text-xs text-content-tertiary mt-3">{mp('audioNote')}</p>
         </section>
       </div>
     </div>

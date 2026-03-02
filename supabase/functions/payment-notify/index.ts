@@ -115,6 +115,21 @@ serve(async (req) => {
             }
         }
 
+        // 代理分成（非关键路径）
+        try {
+            const { data: agentResult, error: agentError } = await supabase.rpc(
+                "process_agent_commission",
+                { p_out_trade_no: out_trade_no }
+            );
+            if (agentError) {
+                console.error("[payment-notify] Agent commission error:", agentError);
+            } else if (agentResult?.success && !agentResult?.already_processed) {
+                console.log("[payment-notify] Agent commission granted:", JSON.stringify(agentResult));
+            }
+        } catch (e) {
+            console.error("[payment-notify] Agent commission exception:", e);
+        }
+
         return textResponse("success");
 
     } catch (error) {

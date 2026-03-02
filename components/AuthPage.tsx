@@ -204,9 +204,10 @@ const AuthPage: React.FC<AuthPageProps> = ({ onClose, onSuccess }) => {
         setError('');
 
         try {
+            const agentDomain = window.location.hostname;
             const body = loginMode === 'phone'
-                ? { phone, code: verifyCode, referral_code: referralCode || undefined }
-                : { email, code: verifyCode, referral_code: referralCode || undefined };
+                ? { phone, code: verifyCode, referral_code: referralCode || undefined, agent_domain: agentDomain }
+                : { email, code: verifyCode, referral_code: referralCode || undefined, agent_domain: agentDomain };
 
             const response = await fetch('https://ncdlejeiqyhfauxkwred.supabase.co/functions/v1/verify-code', {
                 method: 'POST',

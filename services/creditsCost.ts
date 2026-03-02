@@ -91,6 +91,7 @@ export function getKlingCreditsCost(modelVersion: KlingModelVersion, duration: K
         'kling-3-omni-pro-v2v': 28,
         'kling-3-omni-std':     22,
         'kling-3-omni-std-v2v': 22,
+        'kling-2.6-pro':        14,  // 带音频：10秒140积分，5秒70积分 = 14积分/秒
     };
     const noAudioRates: Record<string, number> = {
         'kling-3-pro':          23,
@@ -99,6 +100,7 @@ export function getKlingCreditsCost(modelVersion: KlingModelVersion, duration: K
         'kling-3-omni-pro-v2v': 22,
         'kling-3-omni-std':     17,
         'kling-3-omni-std-v2v': 17,
+        'kling-2.6-pro':        7,   // 不带音频：10秒70积分，5秒35积分 = 7积分/秒
     };
     const rates = generateAudio ? audioRates : noAudioRates;
     return Math.round(duration * (rates[modelVersion] || (generateAudio ? 39 : 23)));

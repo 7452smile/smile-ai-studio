@@ -6,26 +6,25 @@ import { createPayment } from '../services/api';
 import { SubscriptionTier, BillingCycle } from '../types';
 
 // 人民币价格（支付宝实际扣款用）
-const CNY_PRICES: Record<string, Record<string, number>> = {
-    starter:   { monthly: 19.9,  annual: 199 },
-    advanced:  { monthly: 49,    annual: 490 },
-    flagship:  { monthly: 99,    annual: 990 },
-    studio:    { monthly: 299,   annual: 2990 },
+const CNY_PRICES: Record<string, number> = {
+    starter:   19.9,
+    advanced:  49,
+    flagship:  99,
+    studio:    299,
 };
 
 // 美元价格（PayPal 实际扣款 + 统一展示用）
-const USD_PRICES: Record<string, Record<string, number>> = {
-    starter:   { monthly: 2.99,  annual: 29.9 },
-    advanced:  { monthly: 6.99,  annual: 69.9 },
-    flagship:  { monthly: 13.99, annual: 139.9 },
-    studio:    { monthly: 42.99, annual: 429.9 },
+const USD_PRICES: Record<string, number> = {
+    starter:   2.99,
+    advanced:  6.99,
+    flagship:  13.99,
+    studio:    42.99,
 };
 
 interface TierConfig {
     id: SubscriptionTier;
     icon: React.ReactNode;
     monthlyCredits: string;
-    annualCredits: string;
     highlight?: boolean;
 }
 
@@ -33,28 +32,28 @@ const TIERS: TierConfig[] = [
     {
         id: 'free',
         icon: <Zap className="w-5 h-5 text-content-muted" />,
-        monthlyCredits: '188 + 10/day', annualCredits: '-',
+        monthlyCredits: '188 + 10/day',
     },
     {
         id: 'starter',
         icon: <Rocket className="w-5 h-5 text-blue-400" />,
-        monthlyCredits: '2,000', annualCredits: '24,000',
+        monthlyCredits: '2,000',
     },
     {
         id: 'advanced',
         icon: <Crown className="w-5 h-5 text-purple-400" />,
-        monthlyCredits: '6,000', annualCredits: '72,000',
+        monthlyCredits: '6,000',
     },
     {
         id: 'flagship',
         icon: <Star className="w-5 h-5 text-amber-400" />,
-        monthlyCredits: '15,000', annualCredits: '180,000',
+        monthlyCredits: '15,000',
         highlight: true,
     },
     {
         id: 'studio',
         icon: <Building className="w-5 h-5 text-emerald-400" />,
-        monthlyCredits: '50,000', annualCredits: '600,000',
+        monthlyCredits: '50,000',
     },
 ];
 
@@ -62,8 +61,7 @@ const TIER_ORDER: SubscriptionTier[] = ['free', 'starter', 'advanced', 'flagship
 
 const PricingPage: React.FC = () => {
     const { t, i18n } = useTranslation(['pricing', 'common']);
-    const { isLoggedIn, userId, userSubscription, addNotification } = useGeneration();
-    const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly'); // 暂时隐藏年付，默认月付，恢复时改回 'annual'
+    const { isLoggedIn, userId, userSubscription, addNotification, agentConfig } = useGeneration();
     const [loadingTier, setLoadingTier] = useState<string | null>(null);
     const [payMethodModal, setPayMethodModal] = useState<SubscriptionTier | null>(null);
 
@@ -86,7 +84,8 @@ const PricingPage: React.FC = () => {
         setPayMethodModal(null);
         setLoadingTier(tierId);
         try {
-            const result = await createPayment(userId, tierId, billingCycle, payType);
+            const agentDomain = agentConfig ? window.location.hostname : undefined;
+            const result = await createPayment(userId, tierId, 'monthly', payType, agentDomain);
             if (!result.success) {
                 addNotification(t('pricing:createOrderFailed'), result.error || t('common:notify.pleaseRetry'), 'error');
                 return;
@@ -100,7 +99,7 @@ const PricingPage: React.FC = () => {
         } finally {
             setLoadingTier(null);
         }
-    }, [payMethodModal, userId, billingCycle, addNotification]);
+    }, [payMethodModal, userId, addNotification, agentConfig]);
 
     const getButtonText = (tierId: SubscriptionTier) => {
         if (loadingTier === tierId) return t('pricing:processing');
@@ -121,37 +120,37 @@ const PricingPage: React.FC = () => {
             {/* Header */}
             <div className="text-center mb-8">
                 <h1 className="text-3xl font-semibold font-display text-content mb-3">{t('pricing:title')}</h1>
-                <p className="text-content-tertiary max-w-xl mx-auto mb-6">{t('pricing:desc')}</p>
-
-                {/* Billing Toggle - 暂时隐藏年付选项，恢复时去掉 hidden 即可 */}
-                <div className="hidden inline-flex items-center bg-surface-raised rounded-xl p-1 border border-surface-border">
-                    <button
-                        onClick={() => setBillingCycle('monthly')}
-                        className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
-                            billingCycle === 'monthly'
-                                ? 'bg-accent text-white shadow-sm'
-                                : 'text-content-tertiary hover:text-content'
-                        }`}
-                    >{t('pricing:monthly')}</button>
-                    <button
-                        onClick={() => setBillingCycle('annual')}
-                        className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
-                            billingCycle === 'annual'
-                                ? 'bg-accent text-white shadow-sm'
-                                : 'text-content-tertiary hover:text-content'
-                        }`}
-                    >
-                        {t('pricing:annual')}
-                        <span className="ml-1.5 text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full">{t('pricing:annualSave')}</span>
-                    </button>
-                </div>
+                <p className="text-content-tertiary max-w-xl mx-auto">{t('pricing:desc')}</p>
             </div>
 
             {/* Pricing Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 max-w-6xl mx-auto">
                 {TIERS.map((tier) => {
-                    const usdPrice = USD_PRICES[tier.id]?.[billingCycle] ?? 0;
-                    const credits = billingCycle === 'annual' ? tier.annualCredits : tier.monthlyCredits;
+                    const agentPrice = agentConfig?.tier_pricing?.find(p => p.tier_id === tier.id)?.sell_price;
+                    const cnyPrice = CNY_PRICES[tier.id] ?? 0;
+                    const usdPrice = USD_PRICES[tier.id] ?? 0;
+
+                    // 价格显示逻辑：
+                    // 1. 如果是代理站且有代理价格，显示代理价格（人民币）
+                    // 2. 如果是主站，根据语言显示：中文显示人民币，英文显示美元
+                    let displayPrice: number;
+                    let currency: string;
+
+                    if (agentPrice !== undefined && agentPrice > 0) {
+                        // 代理站价格（人民币）
+                        displayPrice = agentPrice;
+                        currency = '¥';
+                    } else if (i18n.language === 'zh-CN') {
+                        // 主站中文（人民币）
+                        displayPrice = cnyPrice;
+                        currency = '¥';
+                    } else {
+                        // 主站英文（美元）
+                        displayPrice = usdPrice;
+                        currency = '$';
+                    }
+
+                    const credits = tier.monthlyCredits;
                     const isCurrent = isCurrentTier(tier.id);
                     const isHighlight = tier.highlight;
 
@@ -191,7 +190,7 @@ const PricingPage: React.FC = () => {
                             ) : (
                                 <div className="mb-4">
                                     <div className="text-3xl font-bold text-content">
-                                        ${billingCycle === 'annual' ? (usdPrice / 12).toFixed(2) : usdPrice}
+                                        {currency}{displayPrice}
                                         <span className="text-sm font-normal text-content-muted ml-1">
                                             {t('pricing:perMonth')}
                                         </span>
@@ -253,77 +252,89 @@ const PricingPage: React.FC = () => {
                     </div>
                     <p className="text-sm text-content-tertiary mb-6 flex-1">{t('pricing:contact.desc')}</p>
                     <div className="space-y-2 text-center text-sm">
-                        <div><span className="text-content-tertiary">{t('pricing:contact.wechat')}:</span> <span className="text-content font-medium font-mono">18124598709</span></div>
-                        <div><span className="text-content-tertiary">Telegram:</span> <a href="https://t.me/smile745231" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">@smile745231</a></div>
-                        <div><span className="text-content-tertiary">{t('pricing:contact.email')}:</span> <a href="mailto:a1205061933@gmail.com" className="text-accent hover:underline">a1205061933@gmail.com</a></div>
+                        {agentConfig ? (
+                            <>
+                                <div><span className="text-content-tertiary">{t('pricing:contact.wechat')}:</span> <span className="text-content font-medium font-mono">{agentConfig.contact_wechat || '未设置'}</span></div>
+                                {agentConfig.enable_telegram && agentConfig.contact_telegram && (
+                                    <div><span className="text-content-tertiary">Telegram:</span> <a href={`https://t.me/${agentConfig.contact_telegram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">{agentConfig.contact_telegram}</a></div>
+                                )}
+                                {agentConfig.enable_email && agentConfig.contact_email && (
+                                    <div><span className="text-content-tertiary">{t('pricing:contact.email')}:</span> <a href={`mailto:${agentConfig.contact_email}`} className="text-accent hover:underline">{agentConfig.contact_email}</a></div>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <div><span className="text-content-tertiary">{t('pricing:contact.wechat')}:</span> <span className="text-content font-medium font-mono">18124598709</span></div>
+                                <div><span className="text-content-tertiary">Telegram:</span> <a href="https://t.me/smile745231" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">@smile745231</a></div>
+                                <div><span className="text-content-tertiary">{t('pricing:contact.email')}:</span> <a href="mailto:a1205061933@gmail.com" className="text-accent hover:underline">a1205061933@gmail.com</a></div>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
 
             {/* 支付方式选择弹窗 */}
-            {payMethodModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setPayMethodModal(null)}>
-                    <div className="card p-6 w-[360px] relative" onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => setPayMethodModal(null)} className="absolute top-4 right-4 text-content-muted hover:text-content">
-                            <X className="w-4 h-4" />
-                        </button>
-                        <h3 className="text-lg font-semibold text-content mb-1">{t('pricing:payMethod.title')}</h3>
-                        <p className="text-xs text-content-tertiary mb-5">
-                            {t('pricing:payMethod.desc', { tier: t(`pricing:tiers.${payMethodModal}.name`), cycle: billingCycle === 'annual' ? t('pricing:annual') : t('pricing:monthly') })}
-                        </p>
-                        <div className="space-y-3">
-                            <button
-                                onClick={() => handlePayWithMethod('alipay')}
-                                className="w-full flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-accent hover:bg-accent/5 transition-all"
-                            >
-                                <div className="flex items-center space-x-3">
-                                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-500 font-bold text-sm">支</div>
-                                    <span className="text-content font-medium">{t('pricing:payMethod.alipay')}</span>
-                                </div>
-                                <span className="text-content-secondary font-semibold">
-                                    ¥{CNY_PRICES[payMethodModal]?.[billingCycle]}
-                                </span>
+            {payMethodModal && (() => {
+                const agentPrice = agentConfig?.tier_pricing?.find(p => p.tier_id === payMethodModal)?.sell_price;
+                const cnyPrice = CNY_PRICES[payMethodModal];
+                const usdPrice = USD_PRICES[payMethodModal];
+
+                // 显示价格：代理站显示代理价格，主站根据语言显示
+                const displayCnyPrice = agentPrice !== undefined && agentPrice > 0 ? agentPrice : cnyPrice;
+                const displayUsdPrice = agentPrice !== undefined && agentPrice > 0 ? agentPrice : usdPrice;
+
+                return (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setPayMethodModal(null)}>
+                        <div className="card p-6 w-[360px] relative" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => setPayMethodModal(null)} className="absolute top-4 right-4 text-content-muted hover:text-content">
+                                <X className="w-4 h-4" />
                             </button>
-                            <button
-                                onClick={() => handlePayWithMethod('paypal')}
-                                className="w-full flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-accent hover:bg-accent/5 transition-all"
-                            >
-                                <div className="flex items-center space-x-3">
-                                    <div className="w-8 h-8 rounded-lg bg-[#0070ba]/10 flex items-center justify-center text-[#0070ba] font-bold text-xs">PP</div>
-                                    <span className="text-content font-medium">{t('pricing:payMethod.paypal')}</span>
-                                </div>
-                                <span className="text-content-secondary font-semibold">
-                                    ${USD_PRICES[payMethodModal]?.[billingCycle]?.toFixed(2)}
-                                </span>
-                            </button>
+                            <h3 className="text-lg font-semibold text-content mb-1">{t('pricing:payMethod.title')}</h3>
+                            <p className="text-xs text-content-tertiary mb-5">
+                                {t('pricing:payMethod.desc', { tier: t(`pricing:tiers.${payMethodModal}.name`), cycle: t('pricing:monthly') })}
+                            </p>
+                            <div className="space-y-3">
+                                <button
+                                    onClick={() => handlePayWithMethod('alipay')}
+                                    className="w-full flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-accent hover:bg-accent/5 transition-all"
+                                >
+                                    <div className="flex items-center space-x-3">
+                                        <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-500 font-bold text-sm">支</div>
+                                        <span className="text-content font-medium">{t('pricing:payMethod.alipay')}</span>
+                                    </div>
+                                    <span className="text-content-secondary font-semibold">
+                                        ¥{displayCnyPrice}
+                                    </span>
+                                </button>
+                                <button
+                                    onClick={() => handlePayWithMethod('paypal')}
+                                    className="w-full flex items-center justify-between p-4 rounded-xl border border-surface-border hover:border-accent hover:bg-accent/5 transition-all"
+                                >
+                                    <div className="flex items-center space-x-3">
+                                        <div className="w-8 h-8 rounded-lg bg-[#0070ba]/10 flex items-center justify-center text-[#0070ba] font-bold text-xs">PP</div>
+                                        <span className="text-content font-medium">{t('pricing:payMethod.paypal')}</span>
+                                    </div>
+                                    <span className="text-content-secondary font-semibold">
+                                        ${displayUsdPrice?.toFixed(2)}
+                                    </span>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
-            {/* FAQ Section */}
+            {/* FAQ Section - 删除积分如何使用和年付优惠相关问题 */}
             <div className="mt-16 max-w-3xl mx-auto text-center">
                 <h2 className="text-xl font-semibold text-content mb-6">{t('pricing:faq.title')}</h2>
                 <div className="space-y-3 text-left">
-                    <div className="card p-5">
-                        <h4 className="font-medium text-content mb-1">{t('pricing:faq.q1')}</h4>
-                        <p className="text-sm text-content-tertiary">{t('pricing:faq.a1')}</p>
-                    </div>
                     <div className="card p-5">
                         <h4 className="font-medium text-content mb-1">{t('pricing:faq.q2')}</h4>
                         <p className="text-sm text-content-tertiary">{t('pricing:faq.a2')}</p>
                     </div>
                     <div className="card p-5">
-                        <h4 className="font-medium text-content mb-1">{t('pricing:faq.q3')}</h4>
-                        <p className="text-sm text-content-tertiary">{t('pricing:faq.a3')}</p>
-                    </div>
-                    <div className="card p-5">
                         <h4 className="font-medium text-content mb-1">{t('pricing:faq.q4')}</h4>
                         <p className="text-sm text-content-tertiary">{t('pricing:faq.a4')}</p>
-                    </div>
-                    <div className="card p-5">
-                        <h4 className="font-medium text-content mb-1">{t('pricing:faq.q5')}</h4>
-                        <p className="text-sm text-content-tertiary">{t('pricing:faq.a5')}</p>
                     </div>
                 </div>
             </div>

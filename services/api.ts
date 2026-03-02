@@ -794,7 +794,8 @@ export async function createPayment(
     userId: string,
     tierId: SubscriptionTier,
     billingCycle: BillingCycle,
-    payType: string = 'alipay'
+    payType: string = 'alipay',
+    agentDomain?: string
 ): Promise<{ success: boolean; paymentUrl?: string; qrcodeUrl?: string; orderId?: string; error?: string }> {
     try {
         const response = await fetch(`${FUNCTIONS_URL}/create-payment`, {
@@ -804,7 +805,8 @@ export async function createPayment(
                 user_id: userId,
                 tier_id: tierId,
                 billing_cycle: billingCycle,
-                pay_type: payType
+                pay_type: payType,
+                agent_domain: agentDomain || undefined,
             })
         });
         const data = await response.json();
@@ -1049,12 +1051,12 @@ export async function imageToPrompt(image: string): Promise<{ success: boolean; 
 // Google OAuth ensure-profile
 // ============================================================
 
-export async function ensureProfile(referralCode?: string): Promise<{ success: boolean; isNewUser?: boolean; profile?: any; error?: string }> {
+export async function ensureProfile(referralCode?: string, agentDomain?: string): Promise<{ success: boolean; isNewUser?: boolean; profile?: any; error?: string }> {
     try {
         const response = await fetch(`${FUNCTIONS_URL}/ensure-profile`, {
             method: 'POST',
             headers: await getAuthHeaders(),
-            body: JSON.stringify({ referral_code: referralCode || undefined })
+            body: JSON.stringify({ referral_code: referralCode || undefined, agent_domain: agentDomain || undefined })
         });
         return response.json();
     } catch {
@@ -1152,5 +1154,49 @@ export async function getDownloadUrl(url: string, filename: string): Promise<str
         return data.download_url || url;
     } catch {
         return url;
+    }
+}
+
+// ============================================================
+// 代理系统
+// ============================================================
+
+export async function getAgentConfig(domain: string): Promise<{ agent: any } | null> {
+    try {
+        const response = await fetch(`${FUNCTIONS_URL}/agent-config?domain=${encodeURIComponent(domain)}`, {
+            headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            }
+        });
+        return response.json();
+    } catch {
+        return null;
+    }
+}
+
+export async function agentQuery(queryType: string, params: Record<string, any> = {}): Promise<any> {
+    try {
+        const response = await fetch(`${FUNCTIONS_URL}/agent-query`, {
+            method: 'POST',
+            headers: await getAuthHeaders(),
+            body: JSON.stringify({ query_type: queryType, params })
+        });
+        return response.json();
+    } catch {
+        return { success: false, error: 'Network error' };
+    }
+}
+
+export async function agentAction(actionType: string, params: Record<string, any> = {}): Promise<any> {
+    try {
+        const response = await fetch(`${FUNCTIONS_URL}/agent-action`, {
+            method: 'POST',
+            headers: await getAuthHeaders(),
+            body: JSON.stringify({ action_type: actionType, params })
+        });
+        return response.json();
+    } catch {
+        return { success: false, error: 'Network error' };
     }
 }

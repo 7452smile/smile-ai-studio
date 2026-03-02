@@ -15,7 +15,8 @@ import {
   Gift,
   Ticket,
   Receipt,
-  Volume2
+  Volume2,
+  Store
 } from 'lucide-react';
 
 import { useGeneration } from '../context/GenerationContext';
@@ -86,7 +87,9 @@ const Sidebar: React.FC = memo(() => {
     userCredits,
     estimatedCost,
     userSubscription,
-    isAdmin
+    isAdmin,
+    isAgent,
+    agentConfig
   } = useGeneration();
 
   const [expandedSection, setExpandedSection] = useState<AppMode | null>(null);
@@ -164,6 +167,10 @@ const Sidebar: React.FC = memo(() => {
     setMode(AppMode.Admin);
   }, [setMode]);
 
+  const handleAgentClick = useCallback(() => {
+    setMode(AppMode.AgentPanel);
+  }, [setMode]);
+
   const handleRedeem = useCallback(async () => {
     if (!userId || !redeemCodeValue.trim() || redeemLoading) return;
     setRedeemLoading(true);
@@ -187,9 +194,9 @@ const Sidebar: React.FC = memo(() => {
     <div className="w-60 h-full bg-surface-raised border-r border-surface-border flex flex-col justify-between shrink-0">
       {/* Logo */}
       <div className="p-5 flex items-center space-x-3 cursor-pointer group" onClick={goHome}>
-        <img src="/logo.png" alt="Smile AI" className="w-9 h-9 rounded-xl shadow-glow" />
+        <img src={agentConfig?.logo_url || "/logo.png"} alt={agentConfig?.brand_name || "Smile AI"} className="w-9 h-9 rounded-xl shadow-glow" />
         <span className="text-lg font-semibold font-display text-content">
-          Smile AI
+          {agentConfig?.brand_name || 'Smile AI'}
         </span>
       </div>
 
@@ -458,6 +465,21 @@ const Sidebar: React.FC = memo(() => {
           >
             <Shield className="w-4 h-4" />
             <span className="text-sm">{t('nav.admin')}</span>
+          </button>
+        )}
+
+        {/* Agent Entry - only show for agents */}
+        {isAgent && (
+          <button
+            onClick={handleAgentClick}
+            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-all ${
+              currentMode === AppMode.AgentPanel
+                ? 'bg-accent-subtle text-content'
+                : 'text-content-tertiary hover:text-content hover:bg-surface-hover'
+            }`}
+          >
+            <Store className="w-4 h-4" />
+            <span className="text-sm">{t('nav.agentPanel')}</span>
           </button>
         )}
 

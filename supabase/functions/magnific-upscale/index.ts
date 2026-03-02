@@ -32,7 +32,21 @@ serve(async (req) => {
             scale_factor: body.scale_factor,
             image_width: body.image_width,
             image_height: body.image_height,
-            has_image: !!body.image
+            has_image: !!body.image,
+            // 创意放大参数
+            creativity: body.creativity,
+            hdr: body.hdr,
+            resemblance: body.resemblance,
+            fractality: body.fractality,
+            engine: body.engine,
+            optimized_for: body.optimized_for,
+            prompt: body.prompt ? '(provided)' : undefined,
+            // 精准放大参数
+            precision_scale_factor: body.precision_scale_factor,
+            flavor: body.flavor,
+            sharpen: body.sharpen,
+            smart_grain: body.smart_grain,
+            ultra_detail: body.ultra_detail
         }));
 
         const {
@@ -137,6 +151,7 @@ serve(async (req) => {
         if (!deductResult.success) return jsonResponse({ error: deductResult.error }, 402);
 
         console.log("[magnific-upscale] Calling Freepik API:", endpoint);
+        console.log("[magnific-upscale] Request body to Freepik:", JSON.stringify(requestBody));
         const result = await callFreepikApi(endpoint, "POST", requestBody);
         console.log("[magnific-upscale] Freepik API result:", JSON.stringify({
             success: result.success,

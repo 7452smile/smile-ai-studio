@@ -26,9 +26,11 @@ serve(async (req) => {
     }
 
     let referral_code: string | undefined;
+    let agent_domain: string | undefined;
     try {
       const body = await req.json();
       referral_code = body?.referral_code;
+      agent_domain = body?.agent_domain;
     } catch {}
 
     // 检查 profile 是否已存在（按 id 或 email）
@@ -71,9 +73,25 @@ serve(async (req) => {
         email: email || null,
         nickname,
         credits: 188,
+        ...(agent_domain ? {} : {}),
       })
       .select()
       .single();
+
+    // 代理归属（新用户创建后写入）
+    if (agent_domain && !profileError) {
+      try {
+        const { data: agent } = await supabase
+          .from("agents")
+          .select("id")
+          .eq("domain", agent_domain)
+          .eq("status", "active")
+          .single();
+        if (agent) {
+          await supabase.from("user_profiles").update({ agent_id: agent.id }).eq("id", user.id);
+        }
+      } catch {}
+    }
 
     if (profileError) {
       console.error("[ensure-profile] Create profile error:", profileError);

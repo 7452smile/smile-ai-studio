@@ -40,7 +40,11 @@
       "Bash(done)",
       "Bash(du:*)",
       "Bash(node -e:*)",
-      "Bash(xargs:*)"
+      "Bash(xargs:*)",
+      "Bash(rm:*)",
+      "Bash(supabase db:*)",
+      "Bash(ls:*)",
+      "Bash(sed:*)"
     ]
   }
 }
