@@ -3,12 +3,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callFreepikApi, deductCredits } from "../_shared/freepik.ts";
 import { deductUserCreditsById, refundUserCreditsById } from "../_shared/userCredits.ts";
 import { checkConcurrencyById } from "../_shared/subscription.ts";
-import { jsonResponse, handleCors } from "../_shared/response.ts";
+import { jsonResponse, handleCors, getRequestOrigin } from "../_shared/response.ts";
 import { getAuthenticatedUserId } from "../_shared/auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const WEBHOOK_BASE_URL = Deno.env.get("WEBHOOK_BASE_URL") || "";
 const MUSIC_CREDITS_PER_SECOND = 1;
 
 serve(async (req) => {
@@ -37,8 +36,9 @@ serve(async (req) => {
         if (!deductResult.success) return jsonResponse({ error: deductResult.error }, 402);
 
         const requestBody: any = { prompt, music_length_seconds };
-        if (WEBHOOK_BASE_URL) {
-            requestBody.webhook_url = `${WEBHOOK_BASE_URL}/freepik-webhook`;
+        const webhookBaseUrl = getRequestOrigin();
+        if (webhookBaseUrl) {
+            requestBody.webhook_url = `${webhookBaseUrl}/functions/v1/freepik-webhook`;
         }
 
         const result = await callFreepikApi("/v1/ai/music-generation", "POST", requestBody);

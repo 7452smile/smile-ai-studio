@@ -4,12 +4,11 @@ import { callFreepikApi, deductCredits } from "../_shared/freepik.ts";
 import { ensureImageUrl } from "../_shared/r2.ts";
 import { deductUserCreditsById, refundUserCreditsById } from "../_shared/userCredits.ts";
 import { checkConcurrencyById } from "../_shared/subscription.ts";
-import { jsonResponse, handleCors } from "../_shared/response.ts";
+import { jsonResponse, handleCors, getRequestOrigin } from "../_shared/response.ts";
 import { getAuthenticatedUserId } from "../_shared/auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const WEBHOOK_BASE_URL = Deno.env.get("WEBHOOK_BASE_URL") || "";
 
 // LTX Video 2.0 Pro 积分消耗计算
 // 1080p 6/8/10秒 = 30/40/50积分
@@ -104,11 +103,12 @@ serve(async (req) => {
         }
 
         // 添加 webhook URL
-        if (WEBHOOK_BASE_URL) {
-            requestBody.webhook_url = `${WEBHOOK_BASE_URL}/freepik-webhook`;
+        const webhookBaseUrl = getRequestOrigin();
+        if (webhookBaseUrl) {
+            requestBody.webhook_url = `${webhookBaseUrl}/functions/v1/freepik-webhook`;
             console.log("[ltx-video] Webhook URL:", requestBody.webhook_url);
         } else {
-            console.warn("[ltx-video] WEBHOOK_BASE_URL not set!");
+            console.warn("[ltx-video] No webhook base URL available!");
         }
 
         // 并发检查

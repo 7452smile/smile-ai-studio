@@ -44,7 +44,9 @@
       "Bash(rm:*)",
       "Bash(supabase db:*)",
       "Bash(ls:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(do echo:*)",
+      "Bash(do:*)"
     ]
   }
 }

@@ -4,12 +4,11 @@ import { callFreepikApi, deductCredits } from "../_shared/freepik.ts";
 import { ensureImageUrl } from "../_shared/r2.ts";
 import { deductUserCreditsById, refundUserCreditsById } from "../_shared/userCredits.ts";
 import { checkConcurrencyById } from "../_shared/subscription.ts";
-import { jsonResponse, handleCors } from "../_shared/response.ts";
+import { jsonResponse, handleCors, getRequestOrigin } from "../_shared/response.ts";
 import { getAuthenticatedUserId } from "../_shared/auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const WEBHOOK_BASE_URL = Deno.env.get("WEBHOOK_BASE_URL") || "";
 
 // RunWay Gen 4.5 积分消耗计算
 const getRunwayCreditsCost = (duration: number): number => {
@@ -95,11 +94,12 @@ serve(async (req) => {
         }
 
         // 添加 webhook URL
-        if (WEBHOOK_BASE_URL) {
-            requestBody.webhook_url = `${WEBHOOK_BASE_URL}/freepik-webhook`;
+        const webhookBaseUrl = getRequestOrigin();
+        if (webhookBaseUrl) {
+            requestBody.webhook_url = `${webhookBaseUrl}/functions/v1/freepik-webhook`;
             console.log("[runway-video] Webhook URL:", requestBody.webhook_url);
         } else {
-            console.warn("[runway-video] WEBHOOK_BASE_URL not set!");
+            console.warn("[runway-video] No webhook base URL available!");
         }
 
         // 并发检查
