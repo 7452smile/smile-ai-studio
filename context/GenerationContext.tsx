@@ -47,12 +47,7 @@ import { RealtimeChannel } from '@supabase/supabase-js';
 import { estimateCreditsCost } from '../services/creditsCost';
 import { ADMIN_PHONES, ADMIN_EMAILS } from '../constants';
 
-// 根据订阅等级获取历史过期时间
-function getHistoryExpireMs(tier?: string): number {
-    if (tier === 'studio') return 30 * 24 * 60 * 60 * 1000;
-    if (tier === 'starter' || tier === 'advanced' || tier === 'flagship') return 7 * 24 * 60 * 60 * 1000;
-    return 24 * 60 * 60 * 1000; // 免费版 1 天
-}
+// 历史记录过期时间由数据库端管理，前端不再需要此函数
 
 interface GenerationContextType {
     // State
@@ -64,6 +59,9 @@ interface GenerationContextType {
     history: GeneratedItem[];
     pendingTasks: GeneratedItem[];
     notifications: Notification[];
+    hasMoreHistory: boolean;
+    isLoadingHistory: boolean;
+    loadMoreHistory: () => Promise<void>;
 
     // User Auth
     isLoggedIn: boolean;
@@ -459,7 +457,6 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
     const logout = useCallback(() => {
         localStorage.removeItem('supabase-session');
         localStorage.removeItem('supabase-login-time');
-        localStorage.removeItem('ai-studio-history');
         localStorage.removeItem('ai-studio-pending-tasks');
         setHistory([]);
         setPendingTasks([]);
@@ -608,27 +605,37 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
         return () => { supabase.removeChannel(channel); };
     }, [isLoggedIn, userId]);
 
-    // 登录后从数据库加载历史记录
+    // 登录后从数据库加载历史记录（首屏 50 条）
     useEffect(() => {
-        if (!isLoggedIn || !userId) return;
-        getHistory(userId, 50).then(items => {
-            if (!items.length) return;
+        if (!isLoggedIn || !userId) {
+            setHistory([]);
+            setHasMoreHistory(true);
+            historyOffsetRef.current = 0;
+            return;
+        }
+
+        const loadInitialHistory = async () => {
+            const items = await getHistory(userId, 50, 0);
+            if (!items.length) {
+                setHistory([]);
+                setHasMoreHistory(false);
+                return;
+            }
             const dbItems: GeneratedItem[] = items.map(item => ({
                 id: item.id,
-                type: item.task_type as 'image' | 'video',
+                type: item.task_type as 'image' | 'video' | 'audio',
                 url: item.result_url,
                 prompt: item.prompt,
                 model: item.model,
                 timestamp: new Date(item.created_at).getTime(),
                 status: 'completed' as const,
             }));
-            setHistory(prev => {
-                const existingIds = new Set(prev.map(h => h.id));
-                const newItems = dbItems.filter(item => !existingIds.has(item.id));
-                if (!newItems.length) return prev;
-                return [...newItems, ...prev].sort((a, b) => b.timestamp - a.timestamp);
-            });
-        });
+            setHistory(dbItems);
+            historyOffsetRef.current = 50;
+            setHasMoreHistory(items.length === 50);
+        };
+
+        loadInitialHistory();
     }, [isLoggedIn, userId]);
 
     // ============================================================
@@ -781,28 +788,11 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
     const [result, setResult] = useState<GeneratedItem | null>(null);
     const [logs, setLogs] = useState<string[]>([]);
 
-    // 标记是否已完成初始化加载
-    const historyInitializedRef = useRef(false);
-
-    // 历史记录初始化
-    const [history, setHistory] = useState<GeneratedItem[]>(() => {
-        try {
-            const savedHistory = localStorage.getItem('ai-studio-history');
-            if (savedHistory) {
-                const parsed: GeneratedItem[] = JSON.parse(savedHistory);
-                const now = Date.now();
-                const filtered = parsed.filter(item =>
-                    (!item.status || item.status === 'completed') && (now - item.timestamp) < 30 * 24 * 60 * 60 * 1000
-                );
-                historyInitializedRef.current = true;
-                return filtered;
-            }
-        } catch (e) {
-            console.error("[History] Failed to load:", e);
-        }
-        historyInitializedRef.current = true;
-        return [];
-    });
+    // 历史记录 - 纯数据库存储，不使用 localStorage
+    const [history, setHistory] = useState<GeneratedItem[]>([]);
+    const [hasMoreHistory, setHasMoreHistory] = useState(true);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+    const historyOffsetRef = useRef(0);
 
     // 标记 pendingTasks 是否已初始化
     const pendingInitializedRef = useRef(false);
@@ -837,15 +827,7 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
     // Realtime 订阅引用 - 改为 Map 支持多任务（纯 Realtime，无轮询）
     const subscriptionsRef = useRef<Map<string, { channel: RealtimeChannel }>>(new Map());
 
-    // Save History to LocalStorage - 只在初始化完成后才保存
-    useEffect(() => {
-        if (!historyInitializedRef.current) return;
-        try {
-            localStorage.setItem('ai-studio-history', JSON.stringify(history));
-        } catch (e) {
-            console.error("[History] Failed to save:", e);
-        }
-    }, [history]);
+    // 历史记录不再保存到 localStorage，完全依赖数据库
 
     // Save PendingTasks to LocalStorage
     useEffect(() => {
@@ -857,15 +839,7 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
         }
     }, [pendingTasks]);
 
-    // 定时清理过期的历史记录（每分钟检查一次）
-    useEffect(() => {
-        const expireMs = getHistoryExpireMs(userSubscription?.tier);
-        const cleanupInterval = setInterval(() => {
-            const now = Date.now();
-            setHistory(prev => prev.filter(item => (now - item.timestamp) < expireMs));
-        }, 60000);
-        return () => clearInterval(cleanupInterval);
-    }, [userSubscription?.tier]);
+    // 历史记录过期清理由数据库端定时任务处理，前端不再需要
 
     // 定时检查卡住的任务（每2分钟检查一次超过3分钟的任务）
     useEffect(() => {
@@ -950,6 +924,36 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
         deleteHistoryFromDB(ids);
         addNotification(i18next.t('common:generation.deleteSuccess'), i18next.t('common:generation.deleteSuccessDesc', { count: ids.length }), 'success');
     }, [addNotification]);
+
+    // 加载更多历史记录
+    const loadMoreHistory = useCallback(async () => {
+        if (!userId || isLoadingHistory || !hasMoreHistory) return;
+
+        setIsLoadingHistory(true);
+        try {
+            const items = await getHistory(userId, 50, historyOffsetRef.current);
+            if (items.length === 0) {
+                setHasMoreHistory(false);
+                return;
+            }
+
+            const dbItems: GeneratedItem[] = items.map(item => ({
+                id: item.id,
+                type: item.task_type as 'image' | 'video' | 'audio',
+                url: item.result_url,
+                prompt: item.prompt,
+                model: item.model,
+                timestamp: new Date(item.created_at).getTime(),
+                status: 'completed' as const,
+            }));
+
+            setHistory(prev => [...prev, ...dbItems]);
+            historyOffsetRef.current += items.length;
+            setHasMoreHistory(items.length === 50);
+        } finally {
+            setIsLoadingHistory(false);
+        }
+    }, [userId, isLoadingHistory, hasMoreHistory]);
 
     // 重新订阅未完成的任务（页面刷新后恢复）
     // 使用 ref 来存储 addNotification 以避免依赖循环
@@ -2546,7 +2550,8 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
         cancelPendingTask, refreshPendingTask,
         goHome,
         showLanding, setShowLanding,
-        lightboxItem, setLightboxItem
+        lightboxItem, setLightboxItem,
+        hasMoreHistory, isLoadingHistory, loadMoreHistory
     }), [
         activeMode, status, result, logs, history, pendingTasks, notifications,
         isLoggedIn, userPhone, userEmail, userId, isAdmin, isAgent, agentConfig, logout, setLoginState,
@@ -2569,7 +2574,8 @@ export const GenerationProvider: React.FC<{ children: ReactNode }> = ({ children
         sfxText, sfxDuration, sfxLoop, sfxPromptInfluence, sfxTranslatedText,
         handleGenerate, addNotification, removeNotification,
         deleteHistoryItems, applyHistoryParams, cancelPendingTask, refreshPendingTask,
-        goHome, showLanding, setShowLanding, lightboxItem
+        goHome, showLanding, setShowLanding, lightboxItem,
+        hasMoreHistory, isLoadingHistory, loadMoreHistory
     ]);
 
     return (

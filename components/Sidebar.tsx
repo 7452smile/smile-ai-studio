@@ -147,6 +147,10 @@ const Sidebar: React.FC = memo(() => {
     setMode(AppMode.Referral);
   }, [setMode]);
 
+  const handleAgentJoinClick = useCallback(() => {
+    setMode(AppMode.AgentJoin);
+  }, [setMode]);
+
   const handleCreditsHistoryClick = useCallback(() => {
     setMode(AppMode.CreditsHistory);
   }, [setMode]);
@@ -342,6 +346,15 @@ const Sidebar: React.FC = memo(() => {
           onClick={handleReferralClick}
           icon={<Gift className="w-[18px] h-[18px]" />}
           label={t('nav.referral')}
+        />
+
+        {/* AGENT JOIN */}
+        <NavButton
+          isActive={currentMode === AppMode.AgentJoin}
+          isExpanded={false}
+          onClick={handleAgentJoinClick}
+          icon={<Store className="w-[18px] h-[18px]" />}
+          label={t('nav.agentJoin')}
         />
 
         {/* CREDITS HISTORY */}

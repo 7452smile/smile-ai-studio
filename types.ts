@@ -13,6 +13,7 @@ export enum AppMode {
   SoundEffect = 'sound-effect',
   MusicGeneration = 'music-generation',
   AgentPanel = 'agent-panel',
+  AgentJoin = 'agent-join',
 }
 
 export type ImageModelType = 'seedream' | 'banana';

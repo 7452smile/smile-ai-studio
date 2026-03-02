@@ -1434,6 +1434,7 @@ const AuditLogTab: React.FC<{ phone: string }> = ({ phone }) => {
 // ============================================================
 const AgentsTab: React.FC<{ phone: string; addNotification: any }> = ({ phone, addNotification }) => {
   const [agents, setAgents] = useState<any[]>([]);
+  const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [editAgent, setEditAgent] = useState<any>(null);
@@ -1550,10 +1551,13 @@ const AgentsTab: React.FC<{ phone: string; addNotification: any }> = ({ phone, a
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-content-muted border-b border-surface-border">
+              <th className="px-3 py-2 w-8"></th>
               <th className="px-3 py-2">品牌名</th>
               <th className="px-3 py-2">域名</th>
+              <th className="px-3 py-2">用户信息</th>
               <th className="px-3 py-2">余额</th>
-              <th className="px-3 py-2">积分汇率</th>
+              <th className="px-3 py-2">注册用户</th>
+              <th className="px-3 py-2">订单/收入</th>
               <th className="px-3 py-2">状态</th>
               <th className="px-3 py-2">创建时间</th>
               <th className="px-3 py-2">操作</th>
@@ -1561,26 +1565,83 @@ const AgentsTab: React.FC<{ phone: string; addNotification: any }> = ({ phone, a
           </thead>
           <tbody>
             {agents.map(a => (
-              <tr key={a.id} className="border-b border-surface-border/50 hover:bg-surface-hover/30">
-                <td className="px-3 py-2 text-content">{a.brand_name}</td>
-                <td className="px-3 py-2 text-content-secondary">{a.domain}</td>
-                <td className="px-3 py-2 text-emerald-400 font-medium">¥{Number(a.balance).toFixed(2)}</td>
-                <td className="px-3 py-2 text-content-muted">{a.credits_rate}</td>
-                <td className="px-3 py-2">
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${
-                    a.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' :
-                    a.status === 'suspended' ? 'bg-amber-500/20 text-amber-400' :
-                    'bg-red-500/20 text-red-400'
-                  }`}>{a.status}</span>
-                </td>
-                <td className="px-3 py-2 text-content-muted">{new Date(a.created_at).toLocaleDateString()}</td>
-                <td className="px-3 py-2">
-                  <button onClick={() => openEdit(a)} className="text-xs text-accent hover:underline">编辑</button>
-                </td>
-              </tr>
+              <React.Fragment key={a.id}>
+                <tr className="border-b border-surface-border/50 hover:bg-surface-hover/30">
+                  <td className="px-3 py-2">
+                    <button
+                      onClick={() => setExpandedAgent(expandedAgent === a.id ? null : a.id)}
+                      className="text-content-muted hover:text-accent transition-colors"
+                    >
+                      {expandedAgent === a.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </button>
+                  </td>
+                  <td className="px-3 py-2 text-content font-medium">{a.brand_name}</td>
+                  <td className="px-3 py-2 text-content-secondary text-xs">{a.domain}</td>
+                  <td className="px-3 py-2">
+                    <div className="text-xs">
+                      <div className="text-content">{a.user_profiles?.nickname || '未设置'}</div>
+                      <div className="text-content-muted">{a.user_profiles?.phone || a.user_profiles?.email || '-'}</div>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-emerald-400 font-medium">¥{Number(a.balance).toFixed(2)}</td>
+                  <td className="px-3 py-2 text-content-secondary">{a.user_count || 0}</td>
+                  <td className="px-3 py-2">
+                    <div className="text-xs">
+                      <div className="text-content">{a.total_orders || 0} 单</div>
+                      <div className="text-emerald-400">¥{Number(a.total_revenue || 0).toFixed(2)}</div>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      a.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' :
+                      a.status === 'suspended' ? 'bg-amber-500/20 text-amber-400' :
+                      'bg-red-500/20 text-red-400'
+                    }`}>{a.status}</span>
+                  </td>
+                  <td className="px-3 py-2 text-content-muted text-xs">{new Date(a.created_at).toLocaleDateString()}</td>
+                  <td className="px-3 py-2">
+                    <button onClick={() => openEdit(a)} className="text-xs text-accent hover:underline">编辑</button>
+                  </td>
+                </tr>
+                {expandedAgent === a.id && (
+                  <tr className="bg-surface-hover/20">
+                    <td colSpan={10} className="px-6 py-4">
+                      <div className="grid grid-cols-2 gap-4 text-xs">
+                        <div>
+                          <h4 className="text-content font-medium mb-2">联系方式</h4>
+                          <div className="space-y-1 text-content-secondary">
+                            <div>微信: {a.contact_wechat || '未设置'}</div>
+                            <div>Telegram: {a.contact_telegram || '未设置'}</div>
+                            <div>邮箱: {a.contact_email || '未设置'}</div>
+                          </div>
+                        </div>
+                        <div>
+                          <h4 className="text-content font-medium mb-2">套餐定价 (成本价 / 售价)</h4>
+                          <div className="space-y-1 text-content-secondary">
+                            {(a.pricing || []).map((p: any) => (
+                              <div key={p.tier_id}>
+                                {TIER_NAMES[p.tier_id]}: ¥{p.cost_price} / ¥{p.sell_price}
+                                {!p.is_active && <span className="text-amber-400 ml-2">(已禁用)</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <h4 className="text-content font-medium mb-2">其他信息</h4>
+                          <div className="space-y-1 text-content-secondary">
+                            <div>积分汇率: {a.credits_rate} 积分/元</div>
+                            <div>用户积分: {a.user_profiles?.credits || 0}</div>
+                            <div>订阅等级: {a.user_profiles?.subscription_tier || 'free'}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
             ))}
             {agents.length === 0 && (
-              <tr><td colSpan={7} className="text-center py-8 text-content-muted">暂无代理</td></tr>
+              <tr><td colSpan={10} className="text-center py-8 text-content-muted">暂无代理</td></tr>
             )}
           </tbody>
         </table>

@@ -26,7 +26,9 @@
     "retention": "历史保存：",
     "retentionUpgrade": "升级套餐可延长保存时间",
     "empty": "暂无记录",
-    "emptyDesc": "开始创作，您的作品将显示在这里"
+    "emptyDesc": "开始创作，您的作品将显示在这里",
+    "loadMore": "加载更多",
+    "loading": "加载中..."
   },
   "detail": {
     "download": "下载",

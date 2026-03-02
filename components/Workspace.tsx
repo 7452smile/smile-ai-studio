@@ -79,7 +79,10 @@ const Workspace: React.FC = memo(() => {
         refreshPendingTask,
         userSubscription,
         ttsVoiceId,
-        setTtsVoiceId
+        setTtsVoiceId,
+        hasMoreHistory,
+        isLoadingHistory,
+        loadMoreHistory
     } = useGeneration();
 
     const [historyTab, setHistoryTab] = useState<HistoryTab>('all');
@@ -319,7 +322,8 @@ const Workspace: React.FC = memo(() => {
         }
 
         return (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            <div className="flex flex-col">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {filteredHistory.map(item => (
                     <div
                         key={item.id}
@@ -385,6 +389,30 @@ const Workspace: React.FC = memo(() => {
                     </div>
                 ))}
             </div>
+
+            {/* 加载更多按钮 */}
+            {hasMoreHistory && (
+                <div className="flex justify-center mt-6">
+                    <button
+                        onClick={loadMoreHistory}
+                        disabled={isLoadingHistory}
+                        className="px-6 py-2.5 rounded-lg bg-surface-hover hover:bg-accent-subtle text-content-secondary hover:text-accent transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                    >
+                        {isLoadingHistory ? (
+                            <>
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                                <span>{t('workspace:history.loading')}</span>
+                            </>
+                        ) : (
+                            <>
+                                <ChevronDown className="w-4 h-4" />
+                                <span>{t('workspace:history.loadMore')}</span>
+                            </>
+                        )}
+                    </button>
+                </div>
+            )}
+        </div>
         );
     }
 

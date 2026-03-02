@@ -435,20 +435,69 @@ serve(async (req) => {
             }
 
             case "agents": {
-                const { data: agents } = await supabase
-                    .from("agents")
-                    .select("*")
-                    .order("created_at", { ascending: false });
-                // 附加定价信息
-                const enriched = [];
-                for (const a of (agents || [])) {
-                    const { data: pricing } = await supabase
-                        .from("agent_tier_pricing")
-                        .select("tier_id, cost_price, sell_price, is_active")
-                        .eq("agent_id", a.id);
-                    enriched.push({ ...a, pricing: pricing || [] });
+                try {
+                    const { data: agents, error: agentsError } = await supabase
+                        .from("agents")
+                        .select("*")
+                        .order("created_at", { ascending: false });
+
+                    if (agentsError) {
+                        console.error("agents query error:", agentsError);
+                        return jsonResponse({ success: false, error: agentsError.message }, 500);
+                    }
+
+                    console.log("agents raw data:", agents);
+
+                    // 附加用户信息、定价信息、订单统计、用户统计
+                    const enriched = [];
+                    for (const a of (agents || [])) {
+                        console.log("processing agent:", a.id, a.domain);
+
+                        // 获取用户信息
+                        const { data: userProfile } = await supabase
+                            .from("user_profiles")
+                            .select("phone, email, nickname, credits, subscription_tier")
+                            .eq("id", a.user_id)
+                            .single();
+
+                        // 获取定价
+                        const { data: pricing } = await supabase
+                            .from("agent_tier_pricing")
+                            .select("tier_id, cost_price, sell_price, is_active")
+                            .eq("agent_id", a.id);
+
+                        // 统计订单数和总收入（通过 agent_domain 字段）
+                        const { data: orders } = await supabase
+                            .from("payment_orders")
+                            .select("amount, status")
+                            .eq("agent_domain", a.domain)
+                            .eq("status", "paid");
+
+                        const totalOrders = orders?.length || 0;
+                        const totalRevenue = orders?.reduce((sum, o) => sum + Number(o.amount), 0) || 0;
+
+                        // 统计注册用户数（通过 agent_domain）
+                        const { count: userCount } = await supabase
+                            .from("user_profiles")
+                            .select("id", { count: "exact", head: true })
+                            .eq("agent_domain", a.domain);
+
+                        enriched.push({
+                            ...a,
+                            user_profiles: userProfile || null,
+                            pricing: pricing || [],
+                            total_orders: totalOrders,
+                            total_revenue: totalRevenue,
+                            user_count: userCount || 0
+                        });
+                    }
+
+                    console.log("enriched data:", enriched);
+                    return jsonResponse({ success: true, data: enriched });
+                } catch (err: any) {
+                    console.error("agents case error:", err);
+                    return jsonResponse({ success: false, error: err.message }, 500);
                 }
-                return jsonResponse({ success: true, data: enriched });
             }
 
             case "agent_withdrawals": {

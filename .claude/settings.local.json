@@ -46,7 +46,9 @@
       "Bash(ls:*)",
       "Bash(sed:*)",
       "Bash(do echo:*)",
-      "Bash(do:*)"
+      "Bash(do:*)",
+      "Bash(psql:*)",
+      "Bash(cat:*)"
     ]
   }
 }
